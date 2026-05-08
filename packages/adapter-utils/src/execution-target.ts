@@ -387,6 +387,11 @@ export async function resolveAdapterExecutionTargetCommandForLogs(
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
+  if (target?.kind === "kubernetes") {
+    throw new Error(
+      "Kubernetes execution target runtime helpers are not implemented yet (M1 covers tenant provisioning only; agent execution lands in M2).",
+    );
+  }
   if (target?.kind === "remote" && target.transport === "sandbox") {
     return `sandbox://${target.providerKey ?? "provider"}/${target.leaseId ?? "lease"}/${target.remoteCwd} :: ${command}`;
   }
@@ -853,7 +858,8 @@ export function adapterExecutionTargetSessionMatches(
     const parsedSaved = parseObject(saved);
     return (
       readStringMeta(parsedSaved, "kind") === current?.kind &&
-      readStringMeta(parsedSaved, "clusterConnectionId") === current?.clusterConnectionId
+      readStringMeta(parsedSaved, "clusterConnectionId") === current?.clusterConnectionId &&
+      readStringMeta(parsedSaved, "namespaceOverride") === (current?.namespaceOverride ?? null)
     );
   }
   if (target.transport === "ssh") return remoteExecutionSessionMatches(saved, target.spec);
@@ -915,6 +921,15 @@ export function parseAdapterExecutionTarget(value: unknown): AdapterExecutionTar
       clusterConnectionId,
       namespaceOverride: readStringMeta(parsed, "namespaceOverride"),
       imageOverride: readStringMeta(parsed, "imageOverride"),
+      resources: parsed.resources && typeof parsed.resources === "object"
+        ? parsed.resources as AdapterKubernetesExecutionTarget["resources"]
+        : null,
+      storage: parsed.storage && typeof parsed.storage === "object"
+        ? parsed.storage as AdapterKubernetesExecutionTarget["storage"]
+        : null,
+      envOverrides: parsed.envOverrides && typeof parsed.envOverrides === "object"
+        ? parsed.envOverrides as AdapterKubernetesExecutionTarget["envOverrides"]
+        : null,
     };
   }
 
