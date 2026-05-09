@@ -42,10 +42,20 @@ export function buildTenantCiliumPolicy(input: BuildTenantCiliumInput): CiliumNe
   });
 
   if (input.dnsAllowlist.length > 0) {
+    // Mirror the M1 baseline shape — `toFQDNs` plus an explicit
+    // `toPorts: [443/TCP]`. This is a no-op behaviorally because Cilium
+    // AND-intersects this CNP with the M1 baseline, which already
+    // restricts egress to 443/TCP — so the effective port set is
+    // unchanged. Emitting it here makes the tenant policy
+    // self-documenting on its own (a reader doesn't have to chase the
+    // baseline to see why arbitrary ports aren't reachable) and keeps
+    // both policies symmetric so future port additions only need to
+    // change one shape.
     egress.push({
       toFQDNs: input.dnsAllowlist.map((dns) =>
         dns.includes("*") ? { matchPattern: dns } : { matchName: dns },
       ),
+      toPorts: [{ ports: [{ port: "443", protocol: "TCP" }] }],
     });
   }
   if (input.egressCidrs.length > 0) {

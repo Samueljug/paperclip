@@ -2,10 +2,13 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkspaceRealizationRequest } from "./types.js";
 import type { GitRunner } from "./git-runner.js";
+import type { GitCredentials } from "./git-clone.js";
 
 export interface GitWorktreeDeps {
   git: GitRunner;
-  getGitCredentials(): Promise<{ username: string; password: string }>;
+  /** See {@link GitCloneDeps.getGitCredentials} — same null-on-not_configured contract. */
+  getGitCredentials(): Promise<GitCredentials | null>;
+  logger?: { warn?: (obj: unknown, msg: string) => void };
 }
 
 export async function executeGitWorktree(
@@ -23,17 +26,27 @@ export async function executeGitWorktree(
   const worktreeName = worktreePath ?? "default";
 
   const creds = await deps.getGitCredentials();
-  const env = {
+  if (!creds) {
+    deps.logger?.warn?.(
+      { repoUrl },
+      "[workspace-strategy] git credentials not configured; attempting unauthenticated clone",
+    );
+  }
+  const env: Record<string, string> = {
     GIT_TERMINAL_PROMPT: "0",
     GIT_ASKPASS: "/bin/true",
-    GIT_USERNAME: creds.username,
-    GIT_PASSWORD: creds.password,
   };
+  if (creds) {
+    env.GIT_USERNAME = creds.username;
+    env.GIT_PASSWORD = creds.password;
+  }
   const bareDir = join(root, ".bare");
   const worktreeDir = join(root, worktreeName);
 
   if (!existsSync(bareDir)) {
-    const url = injectCreds(repoUrl, creds);
+    // SECURITY (deferred follow-up): see git-clone.ts injectCreds() note —
+    // URL-embedded credentials are visible in /proc/[pid]/cmdline.
+    const url = creds ? injectCreds(repoUrl, creds) : repoUrl;
     const r = await deps.git.run("git", ["clone", "--bare", url, bareDir], { env });
     if (r.exitCode !== 0) {
       throw new Error(`git clone --bare failed: ${r.stderr}`);
@@ -64,10 +77,7 @@ export async function executeGitWorktree(
   }
 }
 
-function injectCreds(
-  url: string,
-  creds: { username: string; password: string },
-): string {
+function injectCreds(url: string, creds: GitCredentials): string {
   if (!url.startsWith("https://")) return url;
   const u = new URL(url);
   u.username = encodeURIComponent(creds.username);

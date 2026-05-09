@@ -90,6 +90,16 @@ export function clusterTenantPoliciesService(db: Db): ClusterTenantPoliciesServi
           },
         })
         .returning();
+      // Drizzle types `.returning()` as `T[]`, so destructuring yields
+      // `T | undefined`. An ON CONFLICT DO UPDATE with non-null set values
+      // is expected to always emit exactly one row, but guarding here
+      // means we surface a real error rather than passing `undefined` to
+      // mapRow() and producing a misleading TypeError downstream.
+      if (!row) {
+        throw new Error(
+          "clusterTenantPoliciesService.upsert: insert returning() yielded no rows",
+        );
+      }
       return mapRow(row);
     },
   };

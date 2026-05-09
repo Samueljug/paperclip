@@ -135,4 +135,60 @@ describe("executeWorkspaceStrategy", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("project_primary clones unauthenticated when getGitCredentials returns null (public repo, no tenant secret)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ws-"));
+    try {
+      const git = makeFakeRunner();
+      const warn = vi.fn();
+      await executeWorkspaceStrategy(
+        baseRequest({ repoUrl: "https://github.com/acme/public.git" }),
+        root,
+        {
+          git,
+          getGitCredentials: async () => null,
+          logger: { warn },
+        },
+      );
+      const [cmd, args, opts] = git.run.mock.calls[0] ?? [];
+      expect(cmd).toBe("git");
+      expect(args).toEqual(expect.arrayContaining(["clone", "--branch", "main"]));
+      // URL must be passed verbatim — no creds injected.
+      const urlArg = (args ?? []).find((a) => a.startsWith("https://"));
+      expect(urlArg).toBe("https://github.com/acme/public.git");
+      // Env must not leak GIT_USERNAME / GIT_PASSWORD when none are configured.
+      const env = (opts as { env?: Record<string, string> })?.env ?? {};
+      expect(env.GIT_USERNAME).toBeUndefined();
+      expect(env.GIT_PASSWORD).toBeUndefined();
+      // Operator-visible warning so this isn't silent in production logs.
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("git_worktree bare-clones unauthenticated when getGitCredentials returns null", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ws-"));
+    try {
+      const git = makeFakeRunner();
+      const warn = vi.fn();
+      await executeWorkspaceStrategy(
+        baseRequest({
+          strategy: "git_worktree",
+          worktreePath: "feature-x",
+          repoUrl: "https://github.com/acme/public.git",
+        }),
+        root,
+        { git, getGitCredentials: async () => null, logger: { warn } },
+      );
+      const cloneCall = git.run.mock.calls.find((c) => c[1].includes("--bare"));
+      expect(cloneCall).toBeDefined();
+      const args = cloneCall?.[1] ?? [];
+      const urlArg = args.find((a) => a.startsWith("https://"));
+      expect(urlArg).toBe("https://github.com/acme/public.git");
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

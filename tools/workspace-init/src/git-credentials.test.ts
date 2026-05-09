@@ -37,6 +37,35 @@ describe("createGitCredentialsClient", () => {
     await expect(c.fetch()).rejects.toThrow(/500/);
   });
 
+  it("returns null on 503 not_configured (public-repo / first-run path)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "not_configured" }), { status: 503 }),
+      ),
+    );
+    const c = createGitCredentialsClient({
+      paperclipPublicUrl: "https://pp",
+      runJwt: "jwt",
+      repoUrl: "https://github.com/acme/public.git",
+    });
+    await expect(c.fetch()).resolves.toBeNull();
+  });
+
+  it("throws on 503 with a non-not_configured body (generic transient)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("upstream timeout", { status: 503 })),
+    );
+    const c = createGitCredentialsClient({
+      paperclipPublicUrl: "https://pp",
+      runJwt: "jwt",
+      repoUrl: "",
+    });
+    await expect(c.fetch()).rejects.toThrow(/503/);
+  });
+
   it("throws when response is missing username/password", async () => {
     vi.stubGlobal(
       "fetch",

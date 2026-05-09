@@ -32,6 +32,10 @@ describe("buildTenantCiliumPolicy", () => {
     // FQDN rule contains the two allowlisted hosts and uses matchName for non-wildcard entries.
     const fqdnRule = result.spec.egress.find((r) => r.toFQDNs);
     expect(fqdnRule?.toFQDNs).toEqual([{ matchName: "api.anthropic.com" }, { matchName: "github.com" }]);
+    // FQDN rule mirrors the M1 baseline by pinning to 443/TCP so the
+    // tenant policy is self-documenting (no behaviour change because
+    // Cilium AND-intersects it with the baseline).
+    expect(fqdnRule?.toPorts).toEqual([{ ports: [{ port: "443", protocol: "TCP" }] }]);
   });
 
   it("uses matchPattern for wildcard FQDNs", () => {
