@@ -8,7 +8,8 @@
  */
 
 import type { Command } from "commander";
-import { createDb, companies, eq } from "@paperclipai/db";
+import { eq } from "drizzle-orm";
+import { createDb, companies } from "@paperclipai/db";
 import { clusterConnectionsService } from "@paperclipai/server/services/cluster-connections";
 import { clusterTenantPoliciesService } from "@paperclipai/server/services/cluster-tenant-policies";
 import { clusterNamespaceBindingsService } from "@paperclipai/server/services/cluster-namespace-bindings";
@@ -38,7 +39,7 @@ function buildDeps(opts: { config?: string }) {
   });
 
   const driver = createKubernetesExecutionDriver({
-    resolveConnection: (id) => connsSvc.resolve(id),
+    resolveConnection: (id: string) => connsSvc.resolve(id),
   });
 
   return {

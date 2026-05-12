@@ -18,19 +18,19 @@
  * without real DB or Kubernetes connectivity.
  */
 
+import type {
+  ClusterCapabilities,
+  KubernetesExecutionDriver,
+  ResolvedClusterConnection,
+  TenantPolicy,
+} from "@paperclipai/execution-target-kubernetes";
+
 // ---------------------------------------------------------------------------
 // Dependency interfaces (mirroring the real service shapes without importing
 // from server sub-paths that don't exist in the package exports map)
 // ---------------------------------------------------------------------------
 
-export type ClusterKind = "in-cluster" | "kubeconfig";
-export type ClusterArch = "amd64" | "arm64";
-
-export interface ClusterCapabilities {
-  cilium: boolean;
-  storageClass: string;
-  architectures: ClusterArch[];
-}
+export type ClusterKind = ResolvedClusterConnection["kind"];
 
 export interface ClusterConnectionRow {
   id: string;
@@ -45,10 +45,6 @@ export interface ClusterConnectionRow {
   allowAgentImageOverride: boolean;
   createdAt: Date;
   createdBy: string;
-}
-
-export interface ResolvedClusterConnection extends ClusterConnectionRow {
-  kubeconfigYaml?: string;
 }
 
 export interface CreateClusterConnectionInput {
@@ -72,27 +68,20 @@ export interface ClusterConnectionsService {
   resolve(id: string): Promise<ResolvedClusterConnection | null>;
 }
 
-export interface TenantPolicy {
-  quota: Record<string, string | number | undefined> | null;
-  limitRange: Record<string, unknown> | null;
-  additionalAllowFqdns: string[];
-  imageOverrides: Record<string, string> | null;
+export interface TenantPolicyRow extends TenantPolicy {
+  clusterConnectionId: string;
+  companyId: string;
   /** Cilium DSL: tenant FQDN allow-list folded into the baseline CNP. */
   ciliumDnsAllowlist: string[];
   /** Cilium DSL: tenant CIDR allow-list folded into the baseline CNP. */
   ciliumEgressCidrs: string[];
 }
 
-export interface TenantPolicyRow extends TenantPolicy {
-  clusterConnectionId: string;
-  companyId: string;
-}
-
 export interface UpsertTenantPolicyInput {
   clusterConnectionId: string;
   companyId: string;
-  quota: Record<string, string | number | undefined> | null;
-  limitRange: Record<string, unknown> | null;
+  quota: TenantPolicy["quota"];
+  limitRange: TenantPolicy["limitRange"];
   additionalAllowFqdns: string[];
   imageOverrides: Record<string, string> | null;
   gitCredentialsSecretId?: string;
@@ -110,24 +99,10 @@ export interface EnsureTenantResult {
   ciliumApplied: boolean;
 }
 
-export interface KubernetesDriver {
-  type: "kubernetes";
-  validateTarget(target: unknown): Promise<void>;
-  ensureTenant(input: {
-    clusterConnectionId: string;
-    company: { id: string; slug: string };
-    tenantPolicy: TenantPolicy | null;
-    driverServiceAccount: { name: string; namespace: string };
-    controlPlane: {
-      topology: "in-cluster" | "cross-cluster";
-      namespaceLabels: Record<string, string>;
-      podLabels: Record<string, string>;
-    };
-    adapterAllowFqdns: string[];
-    imagePullDockerConfigJson: string | null;
-  }): Promise<EnsureTenantResult>;
-  run(...args: unknown[]): unknown;
-}
+export type KubernetesDriver = Pick<
+  KubernetesExecutionDriver,
+  "type" | "validateTarget" | "ensureTenant" | "run"
+>;
 
 export interface CompaniesLookup {
   getById(id: string): Promise<{ id: string; name: string; slug: string } | null>;

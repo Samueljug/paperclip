@@ -29,7 +29,9 @@ export const realGitRunner: GitRunner = {
       child.stderr.on("data", (d) => {
         stderr += d.toString();
       });
-      child.on("close", (code) => resolve({ exitCode: code ?? -1, stdout, stderr }));
+      (child as NodeJS.EventEmitter).on("close", (code: number | null) =>
+        resolve({ exitCode: code ?? -1, stdout, stderr }),
+      );
     });
   },
 };
