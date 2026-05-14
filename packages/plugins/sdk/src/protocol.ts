@@ -39,6 +39,8 @@ import type {
   Agent,
   Goal,
   PluginLocalFolderDeclaration,
+  WorkspaceDiffQueryOptions,
+  WorkspaceDiffResponse,
 } from "@paperclipai/shared";
 export type { PluginLauncherRenderContextSnapshot } from "@paperclipai/shared";
 
@@ -776,6 +778,14 @@ export interface WorkerToHostMethods {
   "projects.getWorkspaceForIssue": [
     params: { issueId: string; companyId: string },
     result: PluginWorkspace | null,
+  ];
+  "executionWorkspaces.getDiff": [
+    params: {
+      workspaceId: string;
+      companyId: string;
+      options?: Partial<WorkspaceDiffQueryOptions>;
+    },
+    result: WorkspaceDiffResponse,
   ];
   "projects.managed.get": [
     params: { projectKey: string; companyId: string },

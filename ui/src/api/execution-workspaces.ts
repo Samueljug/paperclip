@@ -2,6 +2,8 @@ import type {
   ExecutionWorkspace,
   ExecutionWorkspaceSummary,
   ExecutionWorkspaceCloseReadiness,
+  WorkspaceDiffQueryOptions,
+  WorkspaceDiffResponse,
   WorkspaceOperation,
   WorkspaceRuntimeControlTarget,
 } from "@paperclipai/shared";
@@ -51,6 +53,19 @@ export const executionWorkspacesApi = {
     return api.get<ExecutionWorkspace[]>(`/companies/${companyId}/execution-workspaces${qs ? `?${qs}` : ""}`);
   },
   get: (id: string) => api.get<ExecutionWorkspace>(`/execution-workspaces/${id}`),
+  getDiff: (id: string, options: Partial<WorkspaceDiffQueryOptions> = {}) => {
+    const params = new URLSearchParams();
+    if (options.view) params.set("view", options.view);
+    if (options.baseRef) params.set("baseRef", options.baseRef);
+    if (typeof options.includeUntracked === "boolean") {
+      params.set("includeUntracked", String(options.includeUntracked));
+    }
+    for (const filePath of options.paths ?? []) {
+      params.append("path", filePath);
+    }
+    const qs = params.toString();
+    return api.get<WorkspaceDiffResponse>(`/execution-workspaces/${id}/diff${qs ? `?${qs}` : ""}`);
+  },
   getCloseReadiness: (id: string) =>
     api.get<ExecutionWorkspaceCloseReadiness>(`/execution-workspaces/${id}/close-readiness`),
   listWorkspaceOperations: (id: string) =>

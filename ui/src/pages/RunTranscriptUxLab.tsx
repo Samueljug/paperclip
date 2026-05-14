@@ -1,22 +1,30 @@
 import { useState } from "react";
+import { FileDiff, PatchDiff } from "@pierre/diffs/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDateTime } from "../lib/utils";
+import { DIFF_RENDERER_FIXTURES, type DiffRendererFixtureId } from "../fixtures/diffRendererFixtures";
 import { Identity } from "../components/Identity";
 import { StatusBadge } from "../components/StatusBadge";
 import { RunTranscriptView, type TranscriptDensity, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import { runTranscriptFixtureEntries, runTranscriptFixtureMeta } from "../fixtures/runTranscriptFixtures";
-import { ExternalLink, FlaskConical, LayoutPanelLeft, MonitorCog, PanelsTopLeft, RadioTower } from "lucide-react";
+import { ExternalLink, FlaskConical, LayoutPanelLeft, MonitorCog, PanelsTopLeft, RadioTower, GitCompare } from "lucide-react";
 
-type SurfaceId = "detail" | "live" | "dashboard";
+type SurfaceId = "detail" | "live" | "dashboard" | "diffs";
+type DiffComponentMode = "patch" | "file";
+type DiffStyle = "unified" | "split";
+type DiffOverflow = "scroll" | "wrap";
+type DiffThemeType = "system" | "light" | "dark";
 
-const surfaceOptions: Array<{
+type SurfaceOption = {
   id: SurfaceId;
   label: string;
   eyebrow: string;
   description: string;
   icon: typeof LayoutPanelLeft;
-}> = [
+};
+
+const surfaceOptions: SurfaceOption[] = [
   {
     id: "detail",
     label: "Run Detail",
@@ -37,6 +45,13 @@ const surfaceOptions: Array<{
     eyebrow: "Dense card",
     description: "The active-agents dashboard card, tuned for compact scanning while keeping the same transcript language.",
     icon: PanelsTopLeft,
+  },
+  {
+    id: "diffs",
+    label: "Diff Renderer",
+    eyebrow: "@pierre/diffs",
+    description: "A spike harness for `PatchDiff` and `FileDiff` with realistic fixtures and rendering options.",
+    icon: GitCompare,
   },
 ];
 
@@ -160,7 +175,9 @@ function DashboardPreview({
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "inline-flex h-2.5 w-2.5 rounded-full",
-                  streaming ? "bg-cyan-500 shadow-[0_0_0_6px_rgba(34,211,238,0.12)]" : "bg-muted-foreground/35",
+                  streaming
+                    ? "bg-cyan-500 shadow-[0_0_0_6px_rgba(34,211,238,0.12)]"
+                    : "bg-muted-foreground/35",
                 )} />
                 <Identity name={runTranscriptFixtureMeta.agentName} size="sm" />
               </div>
@@ -190,11 +207,110 @@ function DashboardPreview({
   );
 }
 
+function DiffRendererPreview({
+  fixtureId,
+  componentMode,
+  diffStyle,
+  overflow,
+  showLineNumbers,
+  disableBackground,
+  themeType,
+}: {
+  fixtureId: DiffRendererFixtureId;
+  componentMode: DiffComponentMode;
+  diffStyle: DiffStyle;
+  overflow: DiffOverflow;
+  showLineNumbers: boolean;
+  disableBackground: boolean;
+  themeType: DiffThemeType;
+}) {
+  const fixture = DIFF_RENDERER_FIXTURES.find((item) => item.id === fixtureId) ?? DIFF_RENDERER_FIXTURES[0];
+  const firstFileDiff = fixture.fileDiffs[0];
+
+  const options = {
+    diffStyle,
+    overflow,
+    disableLineNumbers: !showLineNumbers,
+    disableBackground,
+    themeType,
+  };
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-background/75 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+      <div className="border-b border-border/60 bg-background/90 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="uppercase tracking-[0.18em] text-[10px]">
+            Diff Render
+          </Badge>
+          <span className="rounded-full border border-border/70 bg-background/70 px-2 py-1 text-[10px] text-muted-foreground">
+            {fixture.label}
+          </span>
+        </div>
+        <div className="mt-2 text-sm font-medium">
+          {componentMode === "patch" ? "PatchDiff" : "FileDiff"} • {diffStyle.toUpperCase()} • {fixture.fileDiffs.length} file(s)
+        </div>
+      </div>
+      <div className="max-h-[720px] overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(8,145,178,0.08),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.10),transparent_28%)] p-5">
+        <div className="rounded-lg border border-border/70 bg-background/80 p-3">
+          {componentMode === "file" && !firstFileDiff ? (
+            <div className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Parsed fixture did not produce a file diff payload for `FileDiff`.
+            </div>
+          ) : componentMode === "patch" ? (
+            <PatchDiff patch={fixture.patch} options={options} />
+          ) : (
+            <FileDiff fileDiff={firstFileDiff} options={options} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToggleButtonGroup<T extends string>({
+  selected,
+  options,
+  onSelect,
+}: {
+  selected: T;
+  options: Array<{
+    id: T;
+    label: string;
+  }>;
+  onSelect: (next: T) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-full border border-border/70 bg-background/80 p-1">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          className={cn(
+            "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
+            selected === option.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => onSelect(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function RunTranscriptUxLab() {
   const [selectedSurface, setSelectedSurface] = useState<SurfaceId>("detail");
   const [detailMode, setDetailMode] = useState<TranscriptMode>("nice");
   const [streaming, setStreaming] = useState(true);
   const [density, setDensity] = useState<TranscriptDensity>("comfortable");
+
+  const [diffComponentMode, setDiffComponentMode] = useState<DiffComponentMode>("file");
+  const [diffFixture, setDiffFixture] = useState<DiffRendererFixtureId>(DIFF_RENDERER_FIXTURES[0]?.id ?? "small");
+  const [diffStyle, setDiffStyle] = useState<DiffStyle>("unified");
+  const [diffOverflow, setDiffOverflow] = useState<DiffOverflow>("scroll");
+  const [diffShowLineNumbers, setDiffShowLineNumbers] = useState(true);
+  const [diffDisableBackground, setDiffDisableBackground] = useState(false);
+  const [diffThemeType, setDiffThemeType] = useState<DiffThemeType>("system");
 
   const selected = surfaceOptions.find((option) => option.id === selectedSurface) ?? surfaceOptions[0];
 
@@ -210,7 +326,7 @@ export function RunTranscriptUxLab() {
               </div>
               <h1 className="mt-4 text-2xl font-semibold tracking-tight">Run Transcript Fixtures</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Built from a real Paperclip development run, then sanitized so no secrets, local paths, or environment details survive into the fixture.
+                Built from real Paperclip development data, with a focused spike surface for diff rendering controls.
               </p>
             </div>
 
@@ -261,58 +377,129 @@ export function RunTranscriptUxLab() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em]">
-                  Source run {runTranscriptFixtureMeta.sourceRunId.slice(0, 8)}
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em]">
-                  {runTranscriptFixtureMeta.issueIdentifier}
-                </Badge>
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                {selectedSurface === "diffs" ? (
+                  <>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Controls
+                    </span>
+                    <ToggleButtonGroup<DiffComponentMode>
+                      selected={diffComponentMode}
+                      options={[
+                        { id: "patch", label: "PatchDiff" },
+                        { id: "file", label: "FileDiff" },
+                      ]}
+                      onSelect={setDiffComponentMode}
+                    />
+                    <ToggleButtonGroup<DiffRendererFixtureId>
+                      selected={diffFixture}
+                      options={DIFF_RENDERER_FIXTURES.map((fixture) => ({
+                        id: fixture.id,
+                        label: fixture.label,
+                      }))}
+                      onSelect={setDiffFixture}
+                    />
+                    <ToggleButtonGroup<DiffStyle>
+                      selected={diffStyle}
+                      options={[
+                        { id: "unified", label: "Unified" },
+                        { id: "split", label: "Split" },
+                      ]}
+                      onSelect={setDiffStyle}
+                    />
+                    <ToggleButtonGroup<DiffOverflow>
+                      selected={diffOverflow}
+                      options={[{ id: "scroll", label: "Scroll" }, { id: "wrap", label: "Wrap" }]}
+                      onSelect={setDiffOverflow}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => setDiffShowLineNumbers((value) => !value)}
+                    >
+                      {diffShowLineNumbers ? "Hide" : "Show"} line numbers
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => setDiffDisableBackground((value) => !value)}
+                    >
+                      {diffDisableBackground ? "Enable" : "Disable"} background
+                    </Button>
+                    <ToggleButtonGroup<DiffThemeType>
+                      selected={diffThemeType}
+                      options={[
+                        { id: "system", label: "Auto" },
+                        { id: "light", label: "Light" },
+                        { id: "dark", label: "Dark" },
+                      ]}
+                      onSelect={setDiffThemeType}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Controls
+                    </span>
+                    <div className="inline-flex rounded-full border border-border/70 bg-background/80 p-1">
+                      {(["nice", "raw"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          className={cn(
+                            "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
+                            detailMode === mode
+                              ? "bg-accent text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => setDetailMode(mode)}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="inline-flex rounded-full border border-border/70 bg-background/80 p-1">
+                      {(["comfortable", "compact"] as const).map((nextDensity) => (
+                        <button
+                          key={nextDensity}
+                          type="button"
+                          className={cn(
+                            "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
+                            density === nextDensity
+                              ? "bg-accent text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => setDensity(nextDensity)}
+                        >
+                          {nextDensity}
+                        </button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => setStreaming((value) => !value)}
+                    >
+                      {streaming ? "Show settled state" : "Show streaming state"}
+                    </Button>
+                  </>
+                )}
               </div>
-            </div>
-
-            <div className="mb-5 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Controls
-              </span>
-              <div className="inline-flex rounded-full border border-border/70 bg-background/80 p-1">
-                {(["nice", "raw"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
-                      detailMode === mode ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
-                    )}
-                    onClick={() => setDetailMode(mode)}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-              <div className="inline-flex rounded-full border border-border/70 bg-background/80 p-1">
-                {(["comfortable", "compact"] as const).map((nextDensity) => (
-                  <button
-                    key={nextDensity}
-                    type="button"
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
-                      density === nextDensity ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
-                    )}
-                    onClick={() => setDensity(nextDensity)}
-                  >
-                    {nextDensity}
-                  </button>
-                ))}
-              </div>
-              <Button
+              <Badge
                 variant="outline"
-                size="sm"
-                className="rounded-full"
-                onClick={() => setStreaming((value) => !value)}
+                className="mb-0.5 flex rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em]"
               >
-                {streaming ? "Show settled state" : "Show streaming state"}
-              </Button>
+                Source run {runTranscriptFixtureMeta.sourceRunId.slice(0, 8)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="mb-0.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em]"
+              >
+                {runTranscriptFixtureMeta.issueIdentifier}
+              </Badge>
             </div>
 
             {selectedSurface === "detail" ? (
@@ -323,8 +510,18 @@ export function RunTranscriptUxLab() {
               <div className={cn(density === "compact" && "max-w-4xl")}>
                 <LiveWidgetPreview streaming={streaming} mode={detailMode} density={density} />
               </div>
-            ) : (
+            ) : selectedSurface === "dashboard" ? (
               <DashboardPreview streaming={streaming} mode={detailMode} density={density} />
+            ) : (
+              <DiffRendererPreview
+                fixtureId={diffFixture}
+                componentMode={diffComponentMode}
+                diffStyle={diffStyle}
+                overflow={diffOverflow}
+                showLineNumbers={diffShowLineNumbers}
+                disableBackground={diffDisableBackground}
+                themeType={diffThemeType}
+              />
             )}
           </main>
         </div>

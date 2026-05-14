@@ -6,11 +6,12 @@ import {
   findWorkspaceCommandDefinition,
   matchWorkspaceRuntimeServiceToCommand,
   updateExecutionWorkspaceSchema,
+  workspaceDiffQuerySchema,
   workspaceRuntimeControlTargetSchema,
 } from "@paperclipai/shared";
 import type { WorkspaceRuntimeDesiredState, WorkspaceRuntimeServiceStateMap } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
-import { executionWorkspaceService, logActivity, workspaceOperationService } from "../services/index.js";
+import { executionWorkspaceService, logActivity, workspaceDiffService, workspaceOperationService } from "../services/index.js";
 import { mergeExecutionWorkspaceConfig, readExecutionWorkspaceConfig } from "../services/execution-workspaces.js";
 import { parseProjectExecutionWorkspacePolicy } from "../services/execution-workspace-policy.js";
 import { readProjectWorkspaceRuntimeConfig } from "../services/project-workspace-runtime-config.js";
@@ -36,6 +37,7 @@ const WORKSPACE_CONTROL_OUTPUT_MAX_CHARS = 256 * 1024;
 export function executionWorkspaceRoutes(db: Db) {
   const router = Router();
   const svc = executionWorkspaceService(db);
+  const diffSvc = workspaceDiffService();
   const workspaceOperationsSvc = workspaceOperationService(db);
 
   router.get("/companies/:companyId/execution-workspaces", async (req, res) => {
@@ -63,6 +65,18 @@ export function executionWorkspaceRoutes(db: Db) {
     }
     assertCompanyAccess(req, workspace.companyId);
     res.json(workspace);
+  });
+
+  router.get("/execution-workspaces/:id/diff", async (req, res) => {
+    const id = req.params.id as string;
+    const workspace = await svc.getById(id);
+    if (!workspace) {
+      res.status(404).json({ error: "Execution workspace not found" });
+      return;
+    }
+    assertCompanyAccess(req, workspace.companyId);
+    const query = workspaceDiffQuerySchema.parse(req.query);
+    res.json(await diffSvc.getDiff(workspace, query));
   });
 
   router.get("/execution-workspaces/:id/close-readiness", async (req, res) => {

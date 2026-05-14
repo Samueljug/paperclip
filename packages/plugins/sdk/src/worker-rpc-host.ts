@@ -657,6 +657,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         },
       },
 
+      executionWorkspaces: {
+        async getDiff(workspaceId: string, companyId: string, options = {}) {
+          return callHost("executionWorkspaces.getDiff", { workspaceId, companyId, options });
+        },
+      },
+
       routines: {
         managed: {
           async get(routineKey: string, companyId: string) {

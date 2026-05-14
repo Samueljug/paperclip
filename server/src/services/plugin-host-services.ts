@@ -26,6 +26,7 @@ import { pluginOperationIssueOriginKind } from "@paperclipai/shared";
 import { companyService } from "./companies.js";
 import { agentService } from "./agents.js";
 import { projectService } from "./projects.js";
+import { executionWorkspaceService } from "./execution-workspaces.js";
 import { issueService } from "./issues.js";
 import { issueThreadInteractionService } from "./issue-thread-interactions.js";
 import { goalService } from "./goals.js";
@@ -69,6 +70,7 @@ import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { logger } from "../middleware/logger.js";
 import { getTelemetryClient } from "../telemetry.js";
+import { workspaceDiffService } from "./workspace-diff.js";
 
 // ---------------------------------------------------------------------------
 // SSRF protection for plugin HTTP fetch
@@ -520,6 +522,8 @@ export function buildHostServices(
     pluginWorkerManager: options.pluginWorkerManager,
   });
   const projects = projectService(db);
+  const executionWorkspaces = executionWorkspaceService(db);
+  const workspaceDiff = workspaceDiffService();
   const issues = issueService(db);
   const documents = documentService(db);
   const goals = goalService(db);
@@ -1193,6 +1197,23 @@ export function buildHostServices(
           pluginKey,
           projectKey: params.projectKey,
           reset: true,
+        });
+      },
+    },
+
+    executionWorkspaces: {
+      async getDiff(params) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        const workspace = await executionWorkspaces.getById(params.workspaceId);
+        if (!inCompany(workspace, companyId)) {
+          throw new Error("Execution workspace not found");
+        }
+        return workspaceDiff.getDiff(workspace, {
+          view: params.options?.view ?? "working-tree",
+          baseRef: params.options?.baseRef ?? null,
+          includeUntracked: params.options?.includeUntracked ?? true,
+          paths: params.options?.paths ?? [],
         });
       },
     },

@@ -39,6 +39,11 @@ import type {
   RoutineRun,
   Agent,
   Goal,
+  WorkspaceDiffFile,
+  WorkspaceDiffFilePatch,
+  WorkspaceDiffQueryOptions,
+  WorkspaceDiffResponse,
+  WorkspaceDiffWarning,
 } from "@paperclipai/shared";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +125,11 @@ export type {
   IssueSurfaceVisibility,
   Agent,
   Goal,
+  WorkspaceDiffFile,
+  WorkspaceDiffFilePatch,
+  WorkspaceDiffQueryOptions,
+  WorkspaceDiffResponse,
+  WorkspaceDiffWarning,
 } from "@paperclipai/shared";
 
 // ---------------------------------------------------------------------------
@@ -816,6 +826,24 @@ export interface PluginProjectsClient {
     reconcile(projectKey: string, companyId: string): Promise<PluginManagedProjectResolution>;
     reset(projectKey: string, companyId: string): Promise<PluginManagedProjectResolution>;
   };
+}
+
+/**
+ * `ctx.executionWorkspaces` — read execution workspace metadata and host-derived
+ * views such as source-control diffs.
+ *
+ * Requires `execution.workspaces.read`.
+ */
+export interface PluginExecutionWorkspacesClient {
+  /**
+   * Return a host-generated diff for an execution workspace. The host enforces
+   * company access and reads through Paperclip's workspace diff service.
+   */
+  getDiff(
+    workspaceId: string,
+    companyId: string,
+    options?: Partial<WorkspaceDiffQueryOptions>,
+  ): Promise<WorkspaceDiffResponse>;
 }
 
 /**
@@ -1641,6 +1669,9 @@ export interface PluginContext {
 
   /** Read project and workspace metadata. Requires `projects.read` / `project.workspaces.read`. */
   projects: PluginProjectsClient;
+
+  /** Read execution workspace metadata and diffs. Requires `execution.workspaces.read`. */
+  executionWorkspaces: PluginExecutionWorkspacesClient;
 
   /** Resolve and reconcile plugin-managed routines. Requires `routines.managed`. */
   routines: PluginRoutinesClient;

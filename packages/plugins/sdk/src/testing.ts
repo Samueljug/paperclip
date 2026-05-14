@@ -975,6 +975,42 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
         },
       },
     },
+    executionWorkspaces: {
+      async getDiff(workspaceId, companyId, options) {
+        requireCapability(manifest, capabilitySet, "execution.workspaces.read");
+        return {
+          workspaceId,
+          companyId,
+          repoRoot: "/tmp/paperclip-test",
+          cwd: "/tmp/paperclip-test",
+          view: options?.view ?? "working-tree",
+          baseRef: options?.baseRef ?? null,
+          headSha: null,
+          includeUntracked: options?.includeUntracked ?? true,
+          paths: options?.paths ?? [],
+          files: [],
+          stats: {
+            fileCount: 0,
+            stagedFileCount: 0,
+            unstagedFileCount: 0,
+            untrackedFileCount: 0,
+            binaryFileCount: 0,
+            oversizedFileCount: 0,
+            truncatedFileCount: 0,
+            additions: 0,
+            deletions: 0,
+          },
+          warnings: [],
+          caps: {
+            maxFiles: 0,
+            maxFileBytes: 0,
+            maxPatchBytes: 0,
+            maxTotalPatchBytes: 0,
+          },
+          truncated: false,
+        };
+      },
+    },
     routines: {
       managed: {
         async get(routineKey, companyId) {
