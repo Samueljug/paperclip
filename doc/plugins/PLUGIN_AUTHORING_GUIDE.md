@@ -142,6 +142,11 @@ Do not hide long-lived work behind private plugin state when it should be visibl
 to the board, scoped to a company, audited, budgeted, and assigned like normal
 Paperclip work.
 
+Content-oriented plugins, such as LLM Wiki-style ingestion or durable knowledge
+systems, should use the same pattern: managed projects for operation issues,
+managed agents plus managed skills for LLM work, and managed routines for
+ingest, lint, refresh, or maintenance runs.
+
 Use these surfaces:
 
 - Managed agents: declare top-level `agents[]` and require

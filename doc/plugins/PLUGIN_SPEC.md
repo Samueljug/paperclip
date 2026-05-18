@@ -673,6 +673,11 @@ Plugins that perform durable work should declare managed Paperclip resources rat
 The LLM Wiki plugin is the current reference for this pattern: it declares managed
 agents, projects, routines, and skills in manifest, reconciles them per company,
 and uses managed routines for periodic wiki maintenance and ingest operations.
+Content-oriented plugins should follow the same model instead of running
+unmanaged background loops: make the LLM-facing worker an operator-visible
+managed agent, attach reusable prompt/tool guidance as managed skills, keep
+operation issues in a managed project, and drive recurring work through managed
+routines.
 
 Origin rules:
 
