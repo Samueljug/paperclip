@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Triage UI Harness</title>
+    <style>
+      :root {
+        --background: #ffffff;
+        --foreground: #18181b;
+        --card: #ffffff;
+        --primary: #18181b;
+        --primary-foreground: #ffffff;
+        --secondary: #f4f4f5;
+        --secondary-foreground: #18181b;
+        --muted: #f4f4f5;
+        --muted-foreground: #71717a;
+        --accent: #f4f4f5;
+        --accent-foreground: #18181b;
+        --border: oklch(0.86 0 0);
+        --destructive: oklch(0.637 0.237 25.331);
+      }
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+      }
+      /* Two-column layout shell to mimic the production page chrome. */
+      .triage-shell {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        height: 100%;
+      }
+      .triage-shell-sidebar {
+        border-right: 1px solid var(--border);
+        background: var(--background);
+        overflow: hidden;
+      }
+      .triage-shell-main {
+        overflow: auto;
+        background: var(--background);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/bundle.js"></script>
+  </body>
+</html>
