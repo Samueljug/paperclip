@@ -3,7 +3,17 @@ import { usePluginData, usePluginToast } from "@paperclipai/plugin-sdk/ui";
 import { DIFFS_TAG_NAME, getSingularPatch } from "@pierre/diffs";
 import type { PatchDiffProps } from "@pierre/diffs/react";
 import { useFileDiffInstance } from "@pierre/diffs/react";
-import { createElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createElement,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   diffSummary,
   fileName,
@@ -22,6 +32,12 @@ type WorkspacePatchDiffOptions = PatchDiffProps<undefined>["options"];
 type DiffViewMode = "working-tree" | "head";
 
 type LucideIconProps = { size?: number };
+
+const DEFAULT_FILE_SIDEBAR_WIDTH = 280;
+const MIN_FILE_SIDEBAR_WIDTH = 220;
+const MAX_FILE_SIDEBAR_WIDTH = 520;
+const FILE_SIDEBAR_WIDTH_STEP = 16;
+const FILE_SIDEBAR_WIDTH_STORAGE_KEY = "paperclip.workspace-diff.files-sidebar-width";
 
 function makeLucideIcon(paths: ReactNode) {
   return function LucideIcon({ size = 16 }: LucideIconProps) {
@@ -83,6 +99,49 @@ function iconButtonClass(active = false) {
       ? "border-foreground/20 bg-foreground text-background"
       : "border-border bg-background text-muted-foreground hover:text-foreground",
   ].join(" ");
+}
+
+function clampFileSidebarWidth(width: number) {
+  return Math.min(MAX_FILE_SIDEBAR_WIDTH, Math.max(MIN_FILE_SIDEBAR_WIDTH, width));
+}
+
+function readStoredFileSidebarWidth() {
+  if (typeof window === "undefined") return DEFAULT_FILE_SIDEBAR_WIDTH;
+
+  try {
+    const stored = window.localStorage.getItem(FILE_SIDEBAR_WIDTH_STORAGE_KEY);
+    if (!stored) return DEFAULT_FILE_SIDEBAR_WIDTH;
+    const parsed = Number.parseInt(stored, 10);
+    return Number.isFinite(parsed) ? clampFileSidebarWidth(parsed) : DEFAULT_FILE_SIDEBAR_WIDTH;
+  } catch {
+    return DEFAULT_FILE_SIDEBAR_WIDTH;
+  }
+}
+
+function writeStoredFileSidebarWidth(width: number) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(FILE_SIDEBAR_WIDTH_STORAGE_KEY, String(clampFileSidebarWidth(width)));
+  } catch {
+    // Storage can be unavailable; keep resize interactive even when persistence fails.
+  }
+}
+
+function useIsDesktopDiffLayout() {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return isDesktop;
 }
 
 function warningText(file: DiffFileViewModel) {
@@ -265,9 +324,11 @@ export function ErrorState({
 function FileDiffPanel({
   file,
   mode,
+  lineWrap,
 }: {
   file: DiffFileViewModel;
   mode: DiffRenderMode;
+  lineWrap: boolean;
 }) {
   const warning = warningText(file);
   if (warning) {
@@ -300,7 +361,7 @@ function FileDiffPanel({
                 patch={patch.patch}
                 options={{
                   diffStyle: mode,
-                  overflow: "scroll",
+                  overflow: lineWrap ? "wrap" : "scroll",
                   disableLineNumbers: false,
                   themeType: "system",
                 }}
@@ -348,6 +409,7 @@ function CollapsedFilePanel({
 export function ChangesTab({ context }: PluginDetailTabProps) {
   const toast = usePluginToast();
   const [mode, setMode] = useState<DiffRenderMode>("split");
+  const [lineWrap, setLineWrap] = useState(false);
   const [view, setView] = useState<DiffViewMode>(() => readInitialView());
   const [baseRef, setBaseRef] = useState(() => readInitialBaseRef());
   const baseRefTouchedRef = useRef(Boolean(baseRef.trim()));
@@ -355,11 +417,20 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
   const [includeUntracked, setIncludeUntracked] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [fileSidebarWidth, setFileSidebarWidth] = useState(() => readStoredFileSidebarWidth());
+  const [fileSidebarResizing, setFileSidebarResizing] = useState(false);
+  const fileSidebarWidthRef = useRef(fileSidebarWidth);
+  const fileSidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const fileSectionRefs = useRef(new Map<string, HTMLElement>());
   const diffScrollRef = useRef<HTMLElement | null>(null);
   const scrollSyncFrameRef = useRef<number | null>(null);
+  const usesDesktopDiffLayout = useIsDesktopDiffLayout();
   const requestedBaseRef = baseRef.trim();
   const effectiveView = view === "head" && !requestedBaseRef ? "working-tree" : view;
+  const fileSidebarStyle = useMemo(
+    () => usesDesktopDiffLayout ? { width: `${fileSidebarWidth}px` } : undefined,
+    [fileSidebarWidth, usesDesktopDiffLayout],
+  );
 
   const params = useMemo(() => ({
     workspaceId: context.entityId,
@@ -422,6 +493,60 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
     });
   }, [syncSelectedPathFromScroll]);
 
+  const commitFileSidebarWidth = useCallback((nextWidth: number) => {
+    const clamped = clampFileSidebarWidth(nextWidth);
+    fileSidebarWidthRef.current = clamped;
+    setFileSidebarWidth(clamped);
+    writeStoredFileSidebarWidth(clamped);
+  }, []);
+
+  const handleFileSidebarPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (!usesDesktopDiffLayout) return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    fileSidebarDragRef.current = {
+      startX: event.clientX,
+      startWidth: fileSidebarWidthRef.current,
+    };
+    setFileSidebarResizing(true);
+  }, [usesDesktopDiffLayout]);
+
+  const handleFileSidebarPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = fileSidebarDragRef.current;
+    if (!drag) return;
+
+    const nextWidth = clampFileSidebarWidth(drag.startWidth + event.clientX - drag.startX);
+    fileSidebarWidthRef.current = nextWidth;
+    setFileSidebarWidth(nextWidth);
+  }, []);
+
+  const endFileSidebarResize = useCallback(() => {
+    if (!fileSidebarDragRef.current) return;
+
+    fileSidebarDragRef.current = null;
+    setFileSidebarResizing(false);
+    writeStoredFileSidebarWidth(fileSidebarWidthRef.current);
+  }, []);
+
+  const handleFileSidebarKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (!usesDesktopDiffLayout) return;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      commitFileSidebarWidth(fileSidebarWidth - FILE_SIDEBAR_WIDTH_STEP);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      commitFileSidebarWidth(fileSidebarWidth + FILE_SIDEBAR_WIDTH_STEP);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      commitFileSidebarWidth(MIN_FILE_SIDEBAR_WIDTH);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      commitFileSidebarWidth(MAX_FILE_SIDEBAR_WIDTH);
+    }
+  }, [commitFileSidebarWidth, fileSidebarWidth, usesDesktopDiffLayout]);
+
   useEffect(() => {
     const defaultBaseRef = data?.defaultBaseRef?.trim();
     if (!defaultBaseRef) return;
@@ -450,6 +575,23 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    fileSidebarWidthRef.current = fileSidebarWidth;
+  }, [fileSidebarWidth]);
+
+  useEffect(() => {
+    if (!fileSidebarResizing || typeof document === "undefined") return;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [fileSidebarResizing]);
 
   const copyPath = async (filePath: string) => {
     try {
@@ -488,6 +630,16 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
               Unified
             </button>
           </div>
+          <button
+            key="line-wrap"
+            type="button"
+            className={buttonClass(lineWrap)}
+            onClick={() => setLineWrap((value) => !value)}
+            title={lineWrap ? "Disable line wrapping" : "Enable line wrapping"}
+            aria-pressed={lineWrap}
+          >
+            {lineWrap ? "Wrap on" : "Wrap lines"}
+          </button>
           <div key="view" className="inline-flex gap-1" aria-label="Diff comparison">
             <button
               key="working-tree"
@@ -555,8 +707,12 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
       ) : files.length === 0 ? (
         <EmptyState />
       ) : (
-        <div key="content" className="grid gap-3 lg:h-[70vh] lg:min-h-[560px] lg:max-h-[820px] lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside key="files" className="flex min-w-0 flex-col border border-border bg-background lg:h-full lg:overflow-hidden">
+        <div key="content" className="flex flex-col gap-3 lg:h-[70vh] lg:min-h-[560px] lg:max-h-[820px] lg:flex-row">
+          <aside
+            key="files"
+            className="relative flex min-w-0 flex-col border border-border bg-background lg:h-full lg:shrink-0 lg:overflow-hidden"
+            style={fileSidebarStyle}
+          >
             <div key="heading" className="border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Files
             </div>
@@ -573,12 +729,33 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
                 />
               ))}
             </div>
+            <div
+              role="separator"
+              aria-label="Resize file list"
+              aria-orientation="vertical"
+              aria-valuemin={MIN_FILE_SIDEBAR_WIDTH}
+              aria-valuemax={MAX_FILE_SIDEBAR_WIDTH}
+              aria-valuenow={fileSidebarWidth}
+              tabIndex={0}
+              className={[
+                "absolute inset-y-0 right-0 z-20 hidden w-3 cursor-col-resize touch-none outline-none lg:block",
+                "before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-transparent before:transition-colors",
+                "hover:before:bg-border focus-visible:before:bg-ring",
+                fileSidebarResizing ? "before:bg-ring" : "",
+              ].join(" ")}
+              onPointerDown={handleFileSidebarPointerDown}
+              onPointerMove={handleFileSidebarPointerMove}
+              onPointerUp={endFileSidebarResize}
+              onPointerCancel={endFileSidebarResize}
+              onLostPointerCapture={endFileSidebarResize}
+              onKeyDown={handleFileSidebarKeyDown}
+            />
           </aside>
 
           <main
             key="diffs"
             ref={diffScrollRef}
-            className="max-h-[70vh] min-w-0 space-y-3 overflow-auto lg:h-full lg:max-h-none lg:pr-1"
+            className="max-h-[70vh] min-w-0 flex-1 space-y-3 overflow-auto lg:h-full lg:max-h-none lg:pr-1"
             onScroll={handleDiffScroll}
           >
             {files
@@ -588,7 +765,13 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
                   ref={setFileSectionRef(file.path)}
                   className={file.path === selectedFile?.path ? "scroll-mt-2" : undefined}
                 >
-                  <div key="header" className="flex min-w-0 items-center justify-between gap-3 border border-b-0 border-border bg-muted/35 px-3 py-2">
+                  <div
+                    key="header"
+                    className={[
+                      "flex min-w-0 items-center justify-between gap-3 border border-b-0 border-border bg-muted/35 px-3 py-2",
+                      mode === "unified" ? "sticky top-0 z-10 shadow-sm" : "",
+                    ].join(" ")}
+                  >
                     <div key="left" className="flex min-w-0 items-start gap-2">
                       <button
                         key="collapse"
@@ -628,7 +811,7 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
                     </div>
                   </div>
                   {expandedFiles.has(file.path) ? (
-                    <FileDiffPanel key="diff" file={file} mode={mode} />
+                    <FileDiffPanel key="diff" file={file} mode={mode} lineWrap={lineWrap} />
                   ) : (
                     <CollapsedFilePanel
                       key="collapsed"
