@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { companies, cloudUpstreamConnections, cloudUpstreamRuns, createDb } from "@paperclipai/db";
 
@@ -222,6 +222,47 @@ describeEmbeddedPostgres("cloud upstream persistence", () => {
     });
   });
 
+  it("preserves a cancelled run when an in-flight createRun tries to finish", async () => {
+    const companyId = randomUUID();
+    const connectionId = randomUUID();
+    await seedCompany(companyId);
+    await db.insert(cloudUpstreamConnections).values(cloudConnectionRow({ id: connectionId, companyId }));
+
+    const service = cloudUpstreamService(db);
+    const remoteCalls: string[] = [];
+    globalThis.fetch = vi.fn(async (input) => {
+      const path = new URL(String(input)).pathname;
+      remoteCalls.push(path);
+      if (path.endsWith("/upstream-imports/runs")) {
+        return jsonResponse({ run: { id: "remote-run-1" } });
+      }
+      if (path.endsWith("/chunks")) {
+        const run = await db.select().from(cloudUpstreamRuns).then((rows) => rows[0]);
+        expect(run?.status).toBe("running");
+        await service.cancelRun(connectionId, run.id, companyId);
+        return jsonResponse({ ok: true });
+      }
+      if (path.endsWith("/cancel")) {
+        return jsonResponse({ ok: true });
+      }
+      if (path.endsWith("/apply")) {
+        return jsonResponse({ ok: true });
+      }
+      if (path.endsWith("/events")) {
+        return jsonResponse({ events: [] });
+      }
+      return jsonResponse({ error: "not_found" }, 404);
+    }) as typeof fetch;
+
+    const result = await service.createRun({ connectionId, companyId });
+
+    expect(result.status).toBe("cancelled");
+    expect(remoteCalls.some((path) => path.endsWith("/apply"))).toBe(false);
+    const rows = await db.select().from(cloudUpstreamRuns);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe("cancelled");
+  });
+
   async function seedCompany(companyId: string) {
     await db.insert(companies).values({
       id: companyId,
@@ -240,6 +281,7 @@ function jsonResponse(body: unknown): Response {
 }
 
 function cloudConnectionRow(input: { id: string; companyId: string }) {
+  const { privateKey } = generateKeyPairSync("ed25519");
   return {
     id: input.id,
     companyId: input.companyId,
@@ -247,7 +289,7 @@ function cloudConnectionRow(input: { id: string; companyId: string }) {
     sourceInstanceId: "source-1",
     sourceInstanceFingerprint: "sha256:test",
     sourcePublicKey: "public-key",
-    privateKeyPem: "legacy-private-key",
+    privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
     tokenStatus: "connected",
     scopes: ["upstream_import:write"],
     authorizedGlobalUserId: "user-1",

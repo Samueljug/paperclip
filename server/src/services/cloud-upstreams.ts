@@ -332,7 +332,7 @@ export function cloudUpstreamService(db: Db, options: { instanceId?: string } = 
           entities: bundle.entities,
         });
         const remoteRunId = remoteRunIdFromResponse(remoteRun);
-        await updateRun(runId, {
+        const pushedRun = await updateRunIfRunning(runId, {
           remoteRunId,
           activeStep: "push",
           progressPercent: 60,
@@ -341,11 +341,12 @@ export function cloudUpstreamService(db: Db, options: { instanceId?: string } = 
             event(new Date().toISOString(), "push", "updated", "Created or resumed the cloud import ledger run."),
           ],
         });
+        if (pushedRun.status !== "running") return pushedRun;
 
         for (const chunk of bundle.chunks) {
           await remotePost(connection, `/api/upstream-import-runs/${encodeURIComponent(remoteRunId)}/chunks`, chunk);
         }
-        await updateRun(runId, {
+        const verifiedRun = await updateRunIfRunning(runId, {
           activeStep: "verify",
           progressPercent: 82,
           events: [
@@ -353,6 +354,7 @@ export function cloudUpstreamService(db: Db, options: { instanceId?: string } = 
             event(new Date().toISOString(), "push", "completed", `Uploaded ${bundle.chunks.length} manifest chunk${bundle.chunks.length === 1 ? "" : "s"}.`),
           ],
         });
+        if (verifiedRun.status !== "running") return verifiedRun;
 
         const applied = await remotePost(connection, `/api/upstream-import-runs/${encodeURIComponent(remoteRunId)}/apply`, {});
         const remoteEvents = await remoteGet(connection, `/api/upstream-import-runs/${encodeURIComponent(remoteRunId)}/events`).catch(() => null);
@@ -364,7 +366,7 @@ export function cloudUpstreamService(db: Db, options: { instanceId?: string } = 
           event(completedAt.toISOString(), "activate", "completed", "Activation checklist is ready for manual unpause decisions."),
           ...eventsFromRemote(remoteEvents),
         ];
-        const finalRun = await updateRun(runId, {
+        const finalRun = await updateRunIfRunning(runId, {
           remoteRunId,
           status: "succeeded",
           activeStep: "activate",
@@ -384,15 +386,17 @@ export function cloudUpstreamService(db: Db, options: { instanceId?: string } = 
           },
           completedAt,
         });
-        await db
-          .update(cloudUpstreamConnections)
-          .set({ lastRunId: finalRun.id, updatedAt: new Date() })
-          .where(eq(cloudUpstreamConnections.id, connection.id));
+        if (finalRun.status === "succeeded") {
+          await db
+            .update(cloudUpstreamConnections)
+            .set({ lastRunId: finalRun.id, updatedAt: new Date() })
+            .where(eq(cloudUpstreamConnections.id, connection.id));
+        }
         return finalRun;
       } catch (error) {
         const failedAt = new Date();
         const failure = cloudUpstreamRemoteFailureReport(error);
-        return updateRun(runId, {
+        return updateRunIfRunning(runId, {
           status: "failed",
           activeStep: "push",
           progressPercent: 100,
@@ -535,6 +539,23 @@ export function cloudUpstreamService(db: Db, options: { instanceId?: string } = 
       .returning();
     if (!updated) throw notFound("Cloud upstream run was not found");
     return runFromRow(updated);
+  }
+
+  async function updateRunIfRunning(runId: string, patch: Partial<typeof cloudUpstreamRuns.$inferInsert>): Promise<CloudUpstreamRun> {
+    const [updated] = await db
+      .update(cloudUpstreamRuns)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(cloudUpstreamRuns.id, runId), eq(cloudUpstreamRuns.status, "running")))
+      .returning();
+    if (updated) return runFromRow(updated);
+
+    const [current] = await db
+      .select()
+      .from(cloudUpstreamRuns)
+      .where(eq(cloudUpstreamRuns.id, runId))
+      .limit(1);
+    if (!current) throw notFound("Cloud upstream run was not found");
+    return runFromRow(current);
   }
 
   async function localPreview(connection: ConnectionRow): Promise<CloudUpstreamPreview> {
