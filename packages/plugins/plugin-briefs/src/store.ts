@@ -257,49 +257,70 @@ export function createBriefsStore(db: PluginDatabaseClient) {
         [card.companyId, card.userId, card.slug],
       );
       const persistedCardId = existingRows[0]?.id ?? card.id;
+      const sourceRowsJson = JSON.stringify(card.sources.map((source) => ({
+        id: source.id,
+        source_kind: source.sourceKind,
+        source_id: source.sourceId,
+        issue_id: source.issueId,
+        identifier: source.identifier,
+        title_line: source.titleLine,
+        right_tag: source.rightTag,
+        link_path: source.linkPath,
+        is_intra_tree_blocked: source.isIntraTreeBlocked,
+        event_at: source.eventAt,
+        metadata: source.metadata ?? {},
+      })));
 
       await db.execute(
-        `DELETE FROM ${sourcesTable} WHERE company_id = $1 AND user_id = $2 AND card_id = $3`,
-        [card.companyId, card.userId, persistedCardId],
-      );
-      for (const source of card.sources) {
-        await db.execute(
-          `INSERT INTO ${sourcesTable} (
+        `WITH deleted_sources AS (
+           DELETE FROM ${sourcesTable}
+           WHERE company_id = $1 AND user_id = $2 AND card_id = $3
+           RETURNING id
+         ),
+         source_rows AS (
+           SELECT *
+           FROM jsonb_to_recordset($4::jsonb) AS source(
+             id uuid,
+             source_kind text,
+             source_id text,
+             issue_id uuid,
+             identifier text,
+             title_line text,
+             right_tag text,
+             link_path text,
+             is_intra_tree_blocked boolean,
+             event_at timestamptz,
+             metadata jsonb
+           )
+         ),
+         inserted_sources AS (
+           INSERT INTO ${sourcesTable} (
              id, company_id, user_id, card_id, source_kind, source_id, issue_id, identifier, title_line,
              right_tag, link_path, is_intra_tree_blocked, event_at, metadata
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::jsonb)`,
-          [
-            source.id,
-            source.companyId,
-            source.userId,
-            persistedCardId,
-            source.sourceKind,
-            source.sourceId,
-            source.issueId,
-            source.identifier,
-            source.titleLine,
-            source.rightTag,
-            source.linkPath,
-            source.isIntraTreeBlocked,
-            source.eventAt,
-            JSON.stringify(source.metadata ?? {}),
-          ],
-        );
-      }
-
-      await db.execute(
-        `INSERT INTO ${snapshotsTable} (
-           id, company_id, user_id, card_id, summary_paragraph, summary_status, summary_model,
-           summary_tokens_in, summary_tokens_out, summary_failure_reason, task_rows, evidence_source_ids,
-           generated_by_agent_id, generated_by_run_id, deterministic_state_inputs
+           SELECT id, $1::uuid, $2, $3::uuid, source_kind, source_id, issue_id, identifier, title_line,
+                  right_tag, link_path, is_intra_tree_blocked, event_at, metadata
+           FROM source_rows
+           RETURNING id
+         ),
+         inserted_snapshot AS (
+           INSERT INTO ${snapshotsTable} (
+             id, company_id, user_id, card_id, summary_paragraph, summary_status, summary_model,
+             summary_tokens_in, summary_tokens_out, summary_failure_reason, task_rows, evidence_source_ids,
+             generated_by_agent_id, generated_by_run_id, deterministic_state_inputs
+           )
+           VALUES ($5::uuid, $1::uuid, $2, $3::uuid, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15, $16::jsonb)
+           RETURNING id
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15::jsonb)`,
+         UPDATE ${cardsTable}
+         SET latest_snapshot_id = (SELECT id FROM inserted_snapshot), updated_at = now()
+         WHERE company_id = $1 AND user_id = $2 AND id = $3`,
         [
-          card.snapshot.id,
           card.companyId,
           card.userId,
           persistedCardId,
+          sourceRowsJson,
+          card.snapshot.id,
           card.snapshot.summaryParagraph,
           card.snapshot.summaryStatus,
           card.snapshot.summaryModel,
@@ -312,13 +333,6 @@ export function createBriefsStore(db: PluginDatabaseClient) {
           card.snapshot.generatedByRunId,
           JSON.stringify(card.snapshot.deterministicStateInputs),
         ],
-      );
-
-      await db.execute(
-        `UPDATE ${cardsTable}
-         SET latest_snapshot_id = $1, updated_at = now()
-         WHERE company_id = $2 AND user_id = $3 AND id = $4`,
-        [card.snapshot.id, card.companyId, card.userId, persistedCardId],
       );
 
       return {
