@@ -9,6 +9,7 @@ const serverRoot = path.join(repoRoot, "server");
 const serverTestsDir = path.join(repoRoot, "server", "src", "__tests__");
 const nonServerProjects = [
   "@paperclipai/shared",
+  "@paperclipai/skills-catalog",
   "@paperclipai/db",
   "@paperclipai/adapter-utils",
   "@paperclipai/adapter-acpx-local",
