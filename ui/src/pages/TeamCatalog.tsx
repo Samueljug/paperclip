@@ -1,0 +1,1946 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "@/lib/router";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type {
+  Agent,
+  CatalogTeam,
+  CatalogTeamEnvInputSummary,
+  CatalogTeamImportPreviewResult,
+  CatalogTeamSkillPreparation,
+  CatalogTeamSkillRequirement,
+  CatalogTeamSourceRef,
+  CatalogTeamTrustLevel,
+  CatalogTeamCompatibility,
+  CompanyPortabilityCollisionStrategy,
+} from "@paperclipai/shared";
+import { teamCatalogApi } from "../api/teamCatalog";
+import { agentsApi } from "../api/agents";
+import { useCompany } from "../context/CompanyContext";
+import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { useToastActions } from "../context/ToastContext";
+import { queryKeys } from "../lib/queryKeys";
+import { EmptyState } from "../components/EmptyState";
+import { MarkdownBody } from "../components/MarkdownBody";
+import { cn } from "../lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Boxes,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Crown,
+  Download,
+  FileText,
+  Filter,
+  Folder,
+  FolderKanban,
+  FolderOpen,
+  Github,
+  KeyRound,
+  Link2,
+  Loader2,
+  Package,
+  Repeat,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  Users2,
+  XCircle,
+  XOctagon,
+} from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Risk model — derived client-side from the team's source refs (design §8).
+// ---------------------------------------------------------------------------
+
+type TeamRisk = "safe" | "has_warnings" | "blocked";
+
+const UI_UNSUPPORTED_SOURCE_TYPES = new Set<CatalogTeamSourceRef["type"]>([
+  "local_path",
+  "agent_package",
+]);
+
+function sourceWarningCode(
+  source: CatalogTeamSourceRef,
+): "ok" | "unpinned" | "unsupported_in_ui" {
+  if (UI_UNSUPPORTED_SOURCE_TYPES.has(source.type)) return "unsupported_in_ui";
+  if (!source.pinned) return "unpinned";
+  return "ok";
+}
+
+function teamRisk(team: CatalogTeam): TeamRisk {
+  let risk: TeamRisk = "safe";
+  for (const source of team.sourceRefs) {
+    const code = sourceWarningCode(source);
+    if (code === "unsupported_in_ui") return "blocked";
+    if (code === "unpinned") risk = "has_warnings";
+  }
+  return risk;
+}
+
+function externalSourceCount(team: CatalogTeam): number {
+  return team.sourceRefs.filter((s) => s.type !== "include").length;
+}
+
+function skillCount(team: CatalogTeam): number {
+  return (
+    team.counts.localSkills + team.counts.catalogSkills + team.counts.externalSkillSources
+  );
+}
+
+function titleCase(slug: string): string {
+  return slug
+    .replace(/[-_/]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+function encodeTeamFilePath(filePath: string): string {
+  return filePath.split("/").map(encodeURIComponent).join("~");
+}
+
+function decodeTeamFilePath(encoded: string | undefined): string | null {
+  if (!encoded) return null;
+  return encoded.split("~").map(decodeURIComponent).join("/");
+}
+
+type ParsedRoute = { catalogRef: string | null; filePath: string | null };
+
+function parseTeamRoute(routePath: string | undefined): ParsedRoute {
+  if (!routePath) return { catalogRef: null, filePath: null };
+  const segments = routePath.split("/").filter(Boolean);
+  if (segments.length === 0) return { catalogRef: null, filePath: null };
+  const catalogRef = decodeURIComponent(segments[0]);
+  if (segments[1] === "files" && segments[2]) {
+    return { catalogRef, filePath: decodeTeamFilePath(segments[2]) };
+  }
+  return { catalogRef, filePath: null };
+}
+
+function teamRoute(catalogRef: string, filePath?: string | null): string {
+  const base = `/teams/${encodeURIComponent(catalogRef)}`;
+  if (filePath) return `${base}/files/${encodeTeamFilePath(filePath)}`;
+  return base;
+}
+
+// ---------------------------------------------------------------------------
+// Small presentational components (siblings of the Skills catalog chips).
+// ---------------------------------------------------------------------------
+
+const TRUST_META: Record<
+  CatalogTeamTrustLevel,
+  { label: string; tip: string; tone: string; Icon: typeof ShieldCheck }
+> = {
+  markdown_only: {
+    label: "Markdown only",
+    tip: "Contains only markdown and references. No executable content.",
+    tone: "text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+    Icon: ShieldCheck,
+  },
+  assets: {
+    label: "Assets",
+    tip: "Includes static assets (images, fixtures). No executable content.",
+    tone: "text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+    Icon: ShieldCheck,
+  },
+  scripts_executables: {
+    label: "Scripts",
+    tip: "Includes executable scripts that were security-reviewed before bundling.",
+    tone: "text-amber-600 dark:text-amber-300 border-amber-500/30",
+    Icon: AlertTriangle,
+  },
+  external_sources: {
+    label: "External sources",
+    tip: "References external sources resolved at install time.",
+    tone: "text-amber-600 dark:text-amber-300 border-amber-500/30",
+    Icon: AlertTriangle,
+  },
+};
+
+function TrustChip({ level, iconOnly = false }: { level: CatalogTeamTrustLevel; iconOnly?: boolean }) {
+  const meta = TRUST_META[level];
+  const { Icon } = meta;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium",
+            meta.tone,
+          )}
+        >
+          <Icon className="h-3 w-3" />
+          {!iconOnly && meta.label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{meta.tip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const COMPAT_META: Record<
+  CatalogTeamCompatibility,
+  { label: string; tone: string }
+> = {
+  compatible: { label: "Compatible", tone: "text-emerald-600 dark:text-emerald-300 border-emerald-500/30" },
+  unknown: { label: "Unknown compat", tone: "text-muted-foreground border-border" },
+  invalid: { label: "Invalid", tone: "text-rose-600 dark:text-rose-300 border-rose-500/30" },
+};
+
+function CompatChip({ compatibility }: { compatibility: CatalogTeamCompatibility }) {
+  const meta = COMPAT_META[compatibility];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium",
+        meta.tone,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function ProvenanceBadge({ team }: { team: CatalogTeam }) {
+  if (!team.packageName) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+          <Package className="h-3 w-3" />
+          {team.packageName}
+          {team.packageVersion ? `@${team.packageVersion}` : ""}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Catalog package provenance</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function RiskBanner({ team }: { team: CatalogTeam }) {
+  const unsafe = team.sourceRefs.filter(
+    (s) => sourceWarningCode(s) !== "ok",
+  );
+  if (unsafe.length === 0) return null;
+  return (
+    <div
+      role="alert"
+      className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-amber-700 dark:text-amber-300"
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <AlertTriangle className="h-4 w-4" />
+        This team references {unsafe.length} external source
+        {unsafe.length === 1 ? "" : "s"}
+      </div>
+      <ul className="mt-1.5 space-y-0.5 text-xs">
+        {unsafe.map((s) => (
+          <li key={`${s.type}:${s.ref}`} className="font-mono">
+            {s.ref}{" "}
+            <span className="not-italic font-sans opacity-80">
+              ({sourceWarningCode(s) === "unsupported_in_ui" ? "unsupported in browser install" : "unpinned"})
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function sourceKindIcon(type: CatalogTeamSourceRef["type"]) {
+  switch (type) {
+    case "github":
+      return Github;
+    case "url":
+      return Link2;
+    case "local_path":
+      return Folder;
+    case "agent_package":
+      return Package;
+    case "skills_sh":
+      return Boxes;
+    default:
+      return Link2;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// File tree
+// ---------------------------------------------------------------------------
+
+type TreeNode = {
+  name: string;
+  path: string | null;
+  kind: "dir" | "file";
+  children: TreeNode[];
+};
+
+function buildTree(files: CatalogTeam["files"]): TreeNode[] {
+  const root: TreeNode = { name: "", path: null, kind: "dir", children: [] };
+  for (const file of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+    const parts = file.path.split("/");
+    let cursor = root;
+    parts.forEach((part, idx) => {
+      const isLeaf = idx === parts.length - 1;
+      let child = cursor.children.find((c) => c.name === part);
+      if (!child) {
+        child = {
+          name: part,
+          path: isLeaf ? file.path : null,
+          kind: isLeaf ? "file" : "dir",
+          children: [],
+        };
+        cursor.children.push(child);
+      }
+      cursor = child;
+    });
+  }
+  const sort = (node: TreeNode) => {
+    node.children.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    node.children.forEach(sort);
+  };
+  sort(root);
+  return root.children;
+}
+
+function TeamFileTree({
+  nodes,
+  depth = 0,
+  selectedPath,
+  expanded,
+  onToggleDir,
+  onSelectFile,
+}: {
+  nodes: TreeNode[];
+  depth?: number;
+  selectedPath: string | null;
+  expanded: Set<string>;
+  onToggleDir: (name: string) => void;
+  onSelectFile: (path: string) => void;
+}) {
+  return (
+    <ul className="text-xs">
+      {nodes.map((node) => {
+        const key = node.path ?? `dir:${depth}:${node.name}`;
+        if (node.kind === "dir") {
+          const open = expanded.has(node.name);
+          const DirIcon = open ? FolderOpen : Folder;
+          return (
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => onToggleDir(node.name)}
+                className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 hover:bg-accent/40"
+                style={{ paddingLeft: depth * 14 + 6 }}
+              >
+                {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                <DirIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="truncate">{node.name}</span>
+              </button>
+              {open && (
+                <TeamFileTree
+                  nodes={node.children}
+                  depth={depth + 1}
+                  selectedPath={selectedPath}
+                  expanded={expanded}
+                  onToggleDir={onToggleDir}
+                  onSelectFile={onSelectFile}
+                />
+              )}
+            </li>
+          );
+        }
+        const active = node.path === selectedPath;
+        return (
+          <li key={key}>
+            <button
+              type="button"
+              onClick={() => node.path && onSelectFile(node.path)}
+              className={cn(
+                "flex w-full items-center gap-1.5 rounded px-1.5 py-1 hover:bg-accent/40",
+                active && "bg-accent/50 text-foreground",
+              )}
+              style={{ paddingLeft: depth * 14 + 22 }}
+            >
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="truncate">{node.name}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Agent hierarchy preview (manifest exposes agentSlugs + rootAgentSlugs only;
+// per-agent reportsTo is not in the list manifest, so we render roots distinctly
+// and group the remaining members — graceful degradation per design §7).
+// ---------------------------------------------------------------------------
+
+function TeamHierarchyPreview({ team }: { team: CatalogTeam }) {
+  const roots = new Set(team.rootAgentSlugs);
+  const members = team.agentSlugs.filter((slug) => !roots.has(slug));
+  const requiresManager = team.rootAgentSlugs.length > 0;
+  return (
+    <div className="max-h-72 overflow-auto rounded-md border border-border">
+      <ul className="divide-y divide-border/60">
+        {team.rootAgentSlugs.map((slug) => (
+          <li
+            key={slug}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 text-sm",
+              requiresManager && "border-l-2 border-amber-500/50",
+            )}
+          >
+            <Crown className="h-3.5 w-3.5 text-amber-500" />
+            <span className="font-medium">{titleCase(slug)}</span>
+            <span className="text-xs text-muted-foreground">root agent</span>
+          </li>
+        ))}
+        {members.map((slug) => (
+          <li key={slug} className="flex items-center gap-2 px-3 py-2 pl-7 text-sm">
+            <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{titleCase(slug)}</span>
+          </li>
+        ))}
+        {team.agentSlugs.length === 0 && (
+          <li className="px-3 py-2 text-xs text-muted-foreground">No agents in this team.</li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h3>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Detail pane
+// ---------------------------------------------------------------------------
+
+function MetricTile({
+  label,
+  value,
+  Icon,
+}: {
+  label: string;
+  value: number;
+  Icon: typeof Users2;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xl font-semibold tabular-nums">{value}</span>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function RequiredSkillsList({ skills }: { skills: CatalogTeamSkillRequirement[] }) {
+  if (skills.length === 0) return <p className="text-sm text-muted-foreground">No required skills.</p>;
+  return (
+    <ul className="space-y-1">
+      {skills.map((skill) => (
+        <li
+          key={`${skill.type}:${skill.ref}`}
+          className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+        >
+          <Boxes className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="font-mono text-xs">{skill.ref}</span>
+          <Badge variant="outline" className="ml-auto text-[10px]">
+            {skill.type}
+          </Badge>
+          {skill.resolved ? (
+            <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-300 border-emerald-500/30">
+              resolved
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-300 border-amber-500/30">
+              external
+            </Badge>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function EnvInputsList({ inputs }: { inputs: CatalogTeamEnvInputSummary[] }) {
+  if (inputs.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <SectionHeader>Secrets & env inputs</SectionHeader>
+      <ul className="space-y-1">
+        {inputs.map((input) => (
+          <li
+            key={input.key}
+            className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+          >
+            <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="font-mono text-xs uppercase tracking-wide">{input.key}</span>
+            <Badge
+              variant="outline"
+              className={cn(
+                "ml-auto text-[10px]",
+                input.kind === "secret"
+                  ? "text-rose-600 dark:text-rose-300 border-rose-500/30"
+                  : "text-muted-foreground",
+              )}
+            >
+              {input.kind}
+            </Badge>
+            {input.requirement === "required" && (
+              <Badge variant="outline" className="text-[10px]">required</Badge>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ExternalSourcesList({ sources }: { sources: CatalogTeamSourceRef[] }) {
+  const external = sources.filter((s) => s.type !== "include");
+  const [open, setOpen] = useState(false);
+  if (external.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        External sources · {external.length}
+      </button>
+      {open && (
+        <ul className="divide-y divide-border rounded-md border border-border">
+          {external.map((source) => {
+            const Icon = sourceKindIcon(source.type);
+            const code = sourceWarningCode(source);
+            return (
+              <li key={`${source.type}:${source.ref}`} className="flex items-center gap-2 px-3 py-2 text-sm">
+                <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-mono text-xs truncate">{source.ref}</span>
+                <span className="ml-auto text-[11px]">
+                  {code === "ok" && (
+                    <span className="text-emerald-600 dark:text-emerald-300">Pinned</span>
+                  )}
+                  {code === "unpinned" && (
+                    <span className="text-amber-600 dark:text-amber-300">Unpinned</span>
+                  )}
+                  {code === "unsupported_in_ui" && (
+                    <span className="text-rose-600 dark:text-rose-300">Unsupported in browser install</span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function TeamDetailPane({
+  team,
+  selectedPath,
+  onSelectFile,
+  onInstall,
+  canInstall,
+  fileContent,
+}: {
+  team: CatalogTeam;
+  selectedPath: string | null;
+  onSelectFile: (path: string | null) => void;
+  onInstall: () => void;
+  canInstall: boolean;
+  fileContent: string | null;
+}) {
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const tree = useMemo(() => buildTree(team.files), [team.files]);
+  const invalid = team.compatibility === "invalid";
+  const unsafe = team.trustLevel === "scripts_executables";
+
+  const toggleDir = (name: string) =>
+    setExpandedDirs((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  const installButton = (
+    <Button onClick={onInstall} disabled={invalid || !canInstall}>
+      {unsafe ? <AlertTriangle className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+      Install team
+    </Button>
+  );
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <div className="space-y-5 p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1.5">
+            <h2 className="text-base font-semibold">{team.name}</h2>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant={team.kind === "bundled" ? "secondary" : "outline"} className="text-[10px] capitalize">
+                {team.kind}
+              </Badge>
+              <span className="text-xs text-muted-foreground">{team.category}</span>
+              <TrustChip level={team.trustLevel} />
+              <CompatChip compatibility={team.compatibility} />
+              <ProvenanceBadge team={team} />
+            </div>
+          </div>
+          {invalid ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0}>{installButton}</span>
+              </TooltipTrigger>
+              <TooltipContent>This team cannot be installed — the package manifest is invalid.</TooltipContent>
+            </Tooltip>
+          ) : !canInstall ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0}>{installButton}</span>
+              </TooltipTrigger>
+              <TooltipContent>Requires board operator or agent-create permissions.</TooltipContent>
+            </Tooltip>
+          ) : (
+            installButton
+          )}
+        </div>
+
+        <RiskBanner team={team} />
+
+        {/* Description */}
+        {team.description && (
+          <div className="prose prose-sm prose-neutral max-w-none dark:prose-invert">
+            <MarkdownBody>{team.description}</MarkdownBody>
+          </div>
+        )}
+
+        {/* Summary grid */}
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <MetricTile label="Agents" value={team.counts.agents} Icon={Users2} />
+          <MetricTile label="Projects" value={team.counts.projects} Icon={FolderKanban} />
+          <MetricTile label="Routines" value={team.counts.routines} Icon={Repeat} />
+          <MetricTile label="Required skills" value={skillCount(team)} Icon={Boxes} />
+        </div>
+
+        {/* Agent hierarchy */}
+        <div className="space-y-2">
+          <SectionHeader>Agent hierarchy</SectionHeader>
+          <TeamHierarchyPreview team={team} />
+        </div>
+
+        {/* Projects */}
+        {team.projectSlugs.length > 0 && (
+          <div className="space-y-2">
+            <SectionHeader>Projects</SectionHeader>
+            <ul className="space-y-1">
+              {team.projectSlugs.map((slug) => (
+                <li key={slug} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                  <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{titleCase(slug)}</span>
+                  <span className="ml-auto font-mono text-[11px] text-muted-foreground">{slug}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Required skills */}
+        <div className="space-y-2">
+          <SectionHeader>Required skills</SectionHeader>
+          <RequiredSkillsList skills={team.requiredSkills} />
+        </div>
+
+        {/* Env inputs */}
+        <EnvInputsList inputs={team.envInputs} />
+
+        {/* External sources */}
+        <ExternalSourcesList sources={team.sourceRefs} />
+
+        {/* File inventory */}
+        <div className="space-y-2">
+          <SectionHeader>Files</SectionHeader>
+          <div className="rounded-md border border-border p-1.5">
+            <TeamFileTree
+              nodes={tree}
+              selectedPath={selectedPath}
+              expanded={expandedDirs}
+              onToggleDir={toggleDir}
+              onSelectFile={(path) => onSelectFile(path)}
+            />
+          </div>
+          {selectedPath && (
+            <div className="rounded-md border border-border">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <span className="font-mono text-xs">{selectedPath}</span>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => onSelectFile(null)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="max-h-96 overflow-auto p-3">
+                {fileContent === null ? (
+                  <Skeleton className="h-32 w-full" />
+                ) : selectedPath.endsWith(".md") ? (
+                  <div className="prose prose-sm prose-neutral max-w-none dark:prose-invert">
+                    <MarkdownBody>{fileContent}</MarkdownBody>
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap break-words font-mono text-xs">{fileContent}</pre>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Install wizard
+// ---------------------------------------------------------------------------
+
+type WizardStep = "target_manager" | "source_policy" | "skill_plan" | "preview";
+
+const STEP_LABELS: Record<WizardStep, string> = {
+  target_manager: "Target manager",
+  source_policy: "Source policy",
+  skill_plan: "Prerequisite skills",
+  preview: "Preview",
+};
+
+function computeSteps(team: CatalogTeam): WizardStep[] {
+  const steps: WizardStep[] = [];
+  if (team.rootAgentSlugs.length > 0) steps.push("target_manager");
+  if (team.sourceRefs.some((s) => sourceWarningCode(s) !== "ok")) steps.push("source_policy");
+  if (team.requiredSkills.length > 0) steps.push("skill_plan");
+  steps.push("preview");
+  return steps;
+}
+
+type ApplyPhase = "form" | "applying" | "done" | "error";
+
+function TeamInstallerDialog({
+  team,
+  companyId,
+  agents,
+  open,
+  onClose,
+  onInstalled,
+}: {
+  team: CatalogTeam;
+  companyId: string;
+  agents: Agent[];
+  open: boolean;
+  onClose: () => void;
+  onInstalled: () => void;
+}) {
+  const steps = useMemo(() => computeSteps(team), [team]);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [phase, setPhase] = useState<ApplyPhase>("form");
+
+  // Step 1 — target manager
+  const [targetManagerAgentId, setTargetManagerAgentId] = useState<string | null>(null);
+  const [fullCompany, setFullCompany] = useState(false);
+  const canBypassManager = team.recommendedForCompanyTypes.includes("company-root");
+
+  // Step 2 — source policy (the strict API exposes 3 booleans)
+  const [allowExternalSources, setAllowExternalSources] = useState(false);
+  const [allowUnpinnedOptionalSources, setAllowUnpinnedOptionalSources] = useState(false);
+  const [allowLocalPathSources, setAllowLocalPathSources] = useState(false);
+
+  // Step 4 — preview controls
+  const [collisionStrategy, setCollisionStrategy] = useState<CompanyPortabilityCollisionStrategy>("rename");
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
+  const [confirmScripts, setConfirmScripts] = useState(false);
+
+  const [previewResult, setPreviewResult] = useState<CatalogTeamImportPreviewResult | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Reset on open
+  useEffect(() => {
+    if (open) {
+      setStepIndex(0);
+      setPhase("form");
+      setTargetManagerAgentId(null);
+      setFullCompany(false);
+      setAllowExternalSources(false);
+      setAllowUnpinnedOptionalSources(false);
+      setAllowLocalPathSources(false);
+      setCollisionStrategy("rename");
+      setNameOverrides({});
+      setConfirmScripts(false);
+      setPreviewResult(null);
+      setPreviewError(null);
+      setApplyError(null);
+    }
+  }, [open]);
+
+  const currentStep = steps[stepIndex];
+
+  const buildOptions = () => ({
+    targetManagerAgentId: fullCompany ? null : targetManagerAgentId,
+    collisionStrategy,
+    nameOverrides: Object.keys(nameOverrides).length > 0 ? nameOverrides : undefined,
+    sourcePolicy: {
+      allowExternalSources,
+      allowUnpinnedOptionalSources,
+      allowLocalPathSources,
+    },
+  });
+
+  const previewMutation = useMutation({
+    mutationFn: () => teamCatalogApi.preview(companyId, team.id, buildOptions()),
+    onSuccess: (result) => {
+      setPreviewResult(result);
+      setPreviewError(null);
+    },
+    onError: (error) => {
+      setPreviewError(error instanceof Error ? error.message : "Failed to load install preview.");
+    },
+  });
+
+  const installMutation = useMutation({
+    mutationFn: () => teamCatalogApi.install(companyId, team.id, buildOptions()),
+    onMutate: () => {
+      setPhase("applying");
+      setApplyError(null);
+    },
+    onSuccess: () => {
+      setPhase("done");
+      onInstalled();
+    },
+    onError: (error) => {
+      setPhase("error");
+      setApplyError(error instanceof Error ? error.message : "Install failed.");
+    },
+  });
+
+  // Auto-load preview when reaching the preview step.
+  const previewRequested = useRef(false);
+  useEffect(() => {
+    if (currentStep === "preview" && !previewRequested.current && !previewMutation.isPending) {
+      previewRequested.current = true;
+      previewMutation.mutate();
+    }
+    if (currentStep !== "preview") previewRequested.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  const targetManagerResolved = fullCompany || Boolean(targetManagerAgentId);
+
+  function canContinue(step: WizardStep): boolean {
+    if (step === "target_manager") return targetManagerResolved;
+    if (step === "source_policy") {
+      // Block forward when an unsupported source is present and not (cannot be) allowed.
+      const hasUnsupported = team.sourceRefs.some((s) => sourceWarningCode(s) === "unsupported_in_ui");
+      if (hasUnsupported && !allowLocalPathSources) return false;
+      return true;
+    }
+    return true;
+  }
+
+  const hasErrors = (previewResult?.errors.length ?? 0) > 0;
+  const blockedCount = previewResult?.errors.length ?? 0;
+  const needsScriptsConfirm = team.trustLevel === "scripts_executables";
+
+  function goNext() {
+    if (stepIndex < steps.length - 1) setStepIndex((i) => i + 1);
+  }
+  function goBack() {
+    if (stepIndex > 0) setStepIndex((i) => i - 1);
+  }
+
+  function submitInstall() {
+    if (needsScriptsConfirm && !confirmScripts) {
+      setConfirmScripts(true);
+      return;
+    }
+    installMutation.mutate();
+  }
+
+  const totalSteps = steps.length;
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next && phase !== "applying") onClose(); }}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users2 className="h-4 w-4" />
+            Install {team.name}
+          </DialogTitle>
+          {phase === "form" && (
+            <DialogDescription>
+              Step {stepIndex + 1} of {totalSteps} · {STEP_LABELS[currentStep]}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        {phase === "form" && (
+          <div className="max-h-[60vh] space-y-4 overflow-auto pr-1">
+            {currentStep === "target_manager" && (
+              <StepTargetManager
+                team={team}
+                agents={agents}
+                targetManagerAgentId={targetManagerAgentId}
+                onPickManager={(id) => { setTargetManagerAgentId(id); setFullCompany(false); }}
+                fullCompany={fullCompany}
+                onToggleFullCompany={(v) => { setFullCompany(v); if (v) setTargetManagerAgentId(null); }}
+                canBypassManager={canBypassManager}
+              />
+            )}
+
+            {currentStep === "source_policy" && (
+              <StepSourcePolicy
+                team={team}
+                allowExternalSources={allowExternalSources}
+                allowUnpinnedOptionalSources={allowUnpinnedOptionalSources}
+                allowLocalPathSources={allowLocalPathSources}
+                onChange={(key, value) => {
+                  if (key === "external") setAllowExternalSources(value);
+                  if (key === "unpinned") setAllowUnpinnedOptionalSources(value);
+                  if (key === "localPath") setAllowLocalPathSources(value);
+                }}
+              />
+            )}
+
+            {currentStep === "skill_plan" && (
+              <StepSkillPlan team={team} preparations={previewResult?.skillPreparations ?? null} />
+            )}
+
+            {currentStep === "preview" && (
+              <StepPreview
+                team={team}
+                loading={previewMutation.isPending}
+                error={previewError}
+                result={previewResult}
+                collisionStrategy={collisionStrategy}
+                onCollisionStrategyChange={(s) => { setCollisionStrategy(s); previewRequested.current = false; previewMutation.mutate(); }}
+                nameOverrides={nameOverrides}
+                onRename={(slug, name) => setNameOverrides((cur) => ({ ...cur, [slug]: name }))}
+                onRetry={() => previewMutation.mutate()}
+              />
+            )}
+          </div>
+        )}
+
+        {phase === "applying" && <ApplyProgress team={team} />}
+        {phase === "done" && <ApplySuccess team={team} onClose={onClose} />}
+        {phase === "error" && (
+          <div className="space-y-3">
+            <div role="alert" className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-700 dark:text-rose-300">
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">Install failed</p>
+                <p className="mt-0.5 text-xs">{applyError}</p>
+                <p className="mt-1 text-xs opacity-80">
+                  Partial state is not rolled back. Review the company activity log before retrying.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {phase === "form" && (
+          <DialogFooter className="flex items-center sm:justify-between">
+            <div>
+              {stepIndex > 0 ? (
+                <Button variant="ghost" onClick={goBack}>Back</Button>
+              ) : (
+                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {currentStep === "preview" && hasErrors && (
+                <span className="text-xs text-rose-600 dark:text-rose-300">
+                  Install blocked: {blockedCount} error{blockedCount === 1 ? "" : "s"}
+                </span>
+              )}
+              {currentStep === "preview" ? (
+                needsScriptsConfirm && confirmScripts ? (
+                  <Button
+                    variant="destructive"
+                    onClick={submitInstall}
+                    disabled={hasErrors || previewMutation.isPending}
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    Confirm — install with executables
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={submitInstall}
+                    disabled={hasErrors || previewMutation.isPending || !previewResult}
+                  >
+                    {needsScriptsConfirm ? <AlertTriangle className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                    {needsScriptsConfirm ? "Install with executables" : "Install team"}
+                  </Button>
+                )
+              ) : (
+                <Button onClick={goNext} disabled={!canContinue(currentStep)}>
+                  Continue
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        )}
+
+        {phase === "error" && (
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StepTargetManager({
+  team,
+  agents,
+  targetManagerAgentId,
+  onPickManager,
+  fullCompany,
+  onToggleFullCompany,
+  canBypassManager,
+}: {
+  team: CatalogTeam;
+  agents: Agent[];
+  targetManagerAgentId: string | null;
+  onPickManager: (id: string) => void;
+  fullCompany: boolean;
+  onToggleFullCompany: (v: boolean) => void;
+  canBypassManager: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <div
+        className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-300"
+        id="target-manager-help"
+      >
+        This team&apos;s root agents need a manager in your company. Pick the agent who will become
+        their parent. Internal team hierarchy is preserved.
+      </div>
+
+      <div className="space-y-1.5">
+        <SectionHeader>Root agents</SectionHeader>
+        <ul className="rounded-md border border-border">
+          {team.rootAgentSlugs.map((slug) => (
+            <li key={slug} className="flex items-center gap-2 border-b border-border/60 px-3 py-2 text-sm last:border-b-0">
+              <Crown className="h-3.5 w-3.5 text-amber-500" />
+              <span className="font-medium">{titleCase(slug)}</span>
+              <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+                → ?
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {!fullCompany && (
+        <div className="space-y-1.5" aria-describedby="target-manager-help">
+          <SectionHeader>Target manager</SectionHeader>
+          <Command className="rounded-md border border-border">
+            <CommandInput placeholder="Search agents…" />
+            <CommandList>
+              <CommandEmpty>No agents found.</CommandEmpty>
+              <CommandGroup>
+                {agents.map((agent) => (
+                  <CommandItem
+                    key={agent.id}
+                    value={`${agent.name} ${agent.role} ${agent.title ?? ""}`}
+                    onSelect={() => onPickManager(agent.id)}
+                  >
+                    <div className="flex w-full items-center gap-2">
+                      <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-medium">{agent.name}</span>
+                      <span className="text-xs text-muted-foreground capitalize">{agent.role}</span>
+                      {targetManagerAgentId === agent.id && <Check className="ml-auto h-4 w-4 text-emerald-500" />}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      )}
+
+      {canBypassManager && (
+        <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+          <input
+            type="radio"
+            checked={fullCompany}
+            onChange={(e) => onToggleFullCompany(e.target.checked)}
+          />
+          Use this team as a full-company package (no target manager)
+        </label>
+      )}
+    </div>
+  );
+}
+
+function StepSourcePolicy({
+  team,
+  allowExternalSources,
+  allowUnpinnedOptionalSources,
+  allowLocalPathSources,
+  onChange,
+}: {
+  team: CatalogTeam;
+  allowExternalSources: boolean;
+  allowUnpinnedOptionalSources: boolean;
+  allowLocalPathSources: boolean;
+  onChange: (key: "external" | "unpinned" | "localPath", value: boolean) => void;
+}) {
+  const external = team.sourceRefs.filter((s) => s.type !== "include");
+  const hasUnsupported = external.some((s) => sourceWarningCode(s) === "unsupported_in_ui");
+  return (
+    <div className="space-y-4">
+      <div role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+        This team references {external.length} external source{external.length === 1 ? "" : "s"}.
+        Review each one and decide what to allow before continuing.
+      </div>
+
+      <ul className="divide-y divide-border rounded-md border border-border">
+        {external.map((source) => {
+          const Icon = sourceKindIcon(source.type);
+          const code = sourceWarningCode(source);
+          return (
+            <li key={`${source.type}:${source.ref}`} className="flex items-center gap-2 px-3 py-2.5 text-sm">
+              <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="font-mono text-xs truncate">{source.ref}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {code === "ok" && "pinned"}
+                  {code === "unpinned" && "unpinned reference"}
+                  {code === "unsupported_in_ui" && "not installable from the browser"}
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "ml-auto text-[10px]",
+                  code === "unsupported_in_ui"
+                    ? "text-rose-600 dark:text-rose-300 border-rose-500/30"
+                    : code === "unpinned"
+                      ? "text-amber-600 dark:text-amber-300 border-amber-500/30"
+                      : "text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+                )}
+              >
+                {source.type}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="space-y-2.5 rounded-md border border-border p-3">
+        <PolicyToggle
+          label="Allow external sources"
+          description="Resolve github/url skill and team sources at install time."
+          checked={allowExternalSources}
+          onChange={(v) => onChange("external", v)}
+        />
+        <PolicyToggle
+          label="Allow unpinned optional sources"
+          description="Permit optional sources that are not pinned to a ref or checksum."
+          checked={allowUnpinnedOptionalSources}
+          onChange={(v) => onChange("unpinned", v)}
+        />
+        <PolicyToggle
+          label="Allow local-path sources"
+          description="Required for local_path / agent_package sources. Development use only."
+          checked={allowLocalPathSources}
+          onChange={(v) => onChange("localPath", v)}
+        />
+      </div>
+
+      {hasUnsupported && !allowLocalPathSources && (
+        <p className="text-xs text-rose-600 dark:text-rose-300">
+          This team has local-path sources. Enable &ldquo;Allow local-path sources&rdquo; to continue,
+          or install it from the CLI.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PolicyToggle({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <ToggleSwitch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+const SKILL_ACTION_META: Record<
+  CatalogTeamSkillPreparation["action"],
+  { label: string; tone: string }
+> = {
+  already_in_package: { label: "Bundled in package", tone: "text-emerald-600 dark:text-emerald-300 border-emerald-500/30" },
+  catalog_install_required: { label: "Will install from catalog", tone: "text-blue-600 dark:text-blue-300 border-blue-500/30" },
+  external_import_required: { label: "Will import from source", tone: "text-amber-600 dark:text-amber-300 border-amber-500/30" },
+  blocked: { label: "Blocked", tone: "text-rose-600 dark:text-rose-300 border-rose-500/30" },
+};
+
+function StepSkillPlan({
+  team,
+  preparations,
+}: {
+  team: CatalogTeam;
+  preparations: CatalogTeamSkillPreparation[] | null;
+}) {
+  // Use the live preparations when a preview has run; otherwise fall back to the
+  // static required-skill list (read-only — the strict API does not accept a
+  // per-skill plan override, design §7 graceful degradation).
+  return (
+    <div className="space-y-4">
+      <div role="alert" className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-700 dark:text-blue-300">
+        Before agents are imported, the catalog resolves the skills they depend on. This is the
+        resolution plan.
+      </div>
+      <ul className="divide-y divide-border rounded-md border border-border">
+        {(preparations ?? team.requiredSkills.map(toPreparation)).map((prep) => {
+          const meta = SKILL_ACTION_META[prep.action];
+          return (
+            <li key={`${prep.type}:${prep.ref}`} className="flex items-center gap-2 px-3 py-2.5 text-sm">
+              <Boxes className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="font-mono text-xs truncate">{prep.ref}</p>
+                {prep.reason && <p className="text-[11px] text-muted-foreground">{prep.reason}</p>}
+              </div>
+              <Badge variant="outline" className={cn("ml-auto text-[10px]", meta.tone)}>
+                {meta.label}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function toPreparation(skill: CatalogTeamSkillRequirement): CatalogTeamSkillPreparation {
+  return {
+    type: skill.type,
+    ref: skill.ref,
+    agentSlugs: skill.agentSlugs,
+    action:
+      skill.type === "catalog"
+        ? "catalog_install_required"
+        : skill.resolved
+          ? "already_in_package"
+          : "external_import_required",
+    catalogSkillId: skill.catalogSkillId ?? null,
+    catalogSkillKey: skill.catalogSkillKey ?? null,
+    sourceLocator: skill.sourceLocator ?? null,
+    sourceRef: skill.sourceRef ?? null,
+    reason: null,
+  };
+}
+
+const PLAN_ACTION_TONE: Record<string, string> = {
+  create: "text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+  update: "text-amber-600 dark:text-amber-300 border-amber-500/30",
+  skip: "text-muted-foreground border-border",
+};
+
+function PlanRow({
+  slug,
+  action,
+  plannedName,
+  reason,
+  canRename,
+  override,
+  onRename,
+}: {
+  slug: string;
+  action: string;
+  plannedName: string;
+  reason: string | null;
+  canRename: boolean;
+  override?: string;
+  onRename?: (slug: string, name: string) => void;
+}) {
+  return (
+    <li className="flex items-center gap-2 px-3 py-2 text-sm">
+      <Badge variant="outline" className={cn("text-[10px] uppercase", PLAN_ACTION_TONE[action] ?? "border-border")}>
+        {action}
+      </Badge>
+      <span className={cn("font-mono text-xs", action === "skip" && "line-through opacity-60")}>{slug}</span>
+      <ArrowRight className="h-3 w-3 text-muted-foreground" />
+      {canRename && onRename ? (
+        <Input
+          value={override ?? plannedName}
+          onChange={(e) => onRename(slug, e.target.value)}
+          className="h-7 max-w-[14rem] font-mono text-xs"
+        />
+      ) : (
+        <span className="font-mono text-xs">{plannedName}</span>
+      )}
+      {reason && <span className="ml-auto text-[11px] text-muted-foreground">{reason}</span>}
+    </li>
+  );
+}
+
+function StepPreview({
+  team,
+  loading,
+  error,
+  result,
+  collisionStrategy,
+  onCollisionStrategyChange,
+  nameOverrides,
+  onRename,
+  onRetry,
+}: {
+  team: CatalogTeam;
+  loading: boolean;
+  error: string | null;
+  result: CatalogTeamImportPreviewResult | null;
+  collisionStrategy: CompanyPortabilityCollisionStrategy;
+  onCollisionStrategyChange: (s: CompanyPortabilityCollisionStrategy) => void;
+  nameOverrides: Record<string, string>;
+  onRename: (slug: string, name: string) => void;
+  onRetry: () => void;
+}) {
+  if (loading && !result) {
+    return (
+      <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Preparing preview…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-3">
+        <div role="alert" className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-700 dark:text-rose-300">
+          <XOctagon className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </div>
+        <Button variant="outline" onClick={onRetry}>
+          <RotateCcw className="h-4 w-4" /> Retry
+        </Button>
+      </div>
+    );
+  }
+  if (!result) return null;
+
+  const plan = result.portabilityPreview.plan;
+  const envInputs = result.portabilityPreview.envInputs;
+  const canRename = collisionStrategy === "rename";
+
+  return (
+    <div className="space-y-4">
+      {/* Summary */}
+      <div className="space-y-2">
+        <SectionHeader>Summary</SectionHeader>
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <SummaryCount label="Agents" value={plan.agentPlans.length} />
+          <SummaryCount label="Projects" value={plan.projectPlans.length} />
+          <SummaryCount label="Starter tasks" value={plan.issuePlans.length} />
+          <SummaryCount label="Required skills" value={result.skillPreparations.length} />
+        </div>
+      </div>
+
+      {/* Collision strategy */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium">Collision strategy</span>
+        <Select value={collisionStrategy} onValueChange={(v) => onCollisionStrategyChange(v as CompanyPortabilityCollisionStrategy)}>
+          <SelectTrigger className="h-8 w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="rename">Rename collisions</SelectItem>
+            <SelectItem value="skip">Skip collisions</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Errors / warnings */}
+      {result.errors.length > 0 && (
+        <div role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-700 dark:text-rose-300">
+          <p className="font-medium">Install blocked</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs">
+            {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+          </ul>
+        </div>
+      )}
+      {result.warnings.length > 0 && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+          <ul className="list-disc space-y-0.5 pl-4">
+            {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {/* Agents */}
+      {plan.agentPlans.length > 0 && (
+        <PreviewSection title={`Agents · ${plan.agentPlans.length}`}>
+          {plan.agentPlans.map((p) => (
+            <PlanRow
+              key={p.slug}
+              slug={p.slug}
+              action={p.action}
+              plannedName={p.plannedName}
+              reason={p.reason}
+              canRename={canRename && p.action !== "skip"}
+              override={nameOverrides[p.slug]}
+              onRename={onRename}
+            />
+          ))}
+        </PreviewSection>
+      )}
+
+      {/* Projects */}
+      {plan.projectPlans.length > 0 && (
+        <PreviewSection title={`Projects · ${plan.projectPlans.length}`}>
+          {plan.projectPlans.map((p) => (
+            <PlanRow
+              key={p.slug}
+              slug={p.slug}
+              action={p.action}
+              plannedName={p.plannedName}
+              reason={p.reason}
+              canRename={canRename && p.action !== "skip"}
+              override={nameOverrides[p.slug]}
+              onRename={onRename}
+            />
+          ))}
+        </PreviewSection>
+      )}
+
+      {/* Starter tasks */}
+      {plan.issuePlans.length > 0 && (
+        <PreviewSection title={`Starter tasks · ${plan.issuePlans.length}`}>
+          {plan.issuePlans.map((p) => (
+            <PlanRow key={p.slug} slug={p.slug} action={p.action} plannedName={p.plannedTitle} reason={p.reason} canRename={false} />
+          ))}
+        </PreviewSection>
+      )}
+
+      {/* Env inputs (read-only) */}
+      {envInputs.length > 0 && (
+        <PreviewSection title={`Secrets & env inputs · ${envInputs.length}`}>
+          {envInputs.map((input) => (
+            <li key={input.key} className="flex items-center gap-2 px-3 py-2 text-sm">
+              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-mono text-xs uppercase tracking-wide">{input.key}</span>
+              {input.description && <span className="text-xs text-muted-foreground">{input.description}</span>}
+              <Badge
+                variant="outline"
+                className={cn("ml-auto text-[10px]", input.kind === "secret" ? "text-rose-600 dark:text-rose-300 border-rose-500/30" : "text-muted-foreground")}
+              >
+                {input.kind}
+              </Badge>
+            </li>
+          ))}
+          <li className="px-3 py-1.5 text-[11px] text-muted-foreground">
+            Secret values are configured on the imported agents after install.
+          </li>
+        </PreviewSection>
+      )}
+
+      {/* Provenance */}
+      <div className="rounded-md border border-border px-3 py-2.5 text-xs text-muted-foreground">
+        Imported entities are stamped with <code className="font-mono">metadata.paperclip.catalogTeam</code>{" "}
+        ({team.packageName ?? team.key}, content hash <code className="font-mono">{team.contentHash.slice(0, 16)}…</code>),
+        and an activity event is recorded for preview and install.
+      </div>
+    </div>
+  );
+}
+
+function SummaryCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <span className="text-lg font-semibold tabular-nums">{value}</span>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-border">
+      <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </div>
+      <ul className="divide-y divide-border/60">{children}</ul>
+    </div>
+  );
+}
+
+function ApplyProgress({ team }: { team: CatalogTeam }) {
+  const steps = [
+    "Installing prerequisite skills",
+    "Importing agents",
+    "Importing projects",
+    "Importing routines",
+    "Stamping provenance metadata",
+    "Recording activity events",
+  ];
+  return (
+    <div className="space-y-1 py-4">
+      <p className="mb-3 text-sm text-muted-foreground">Installing {team.name}…</p>
+      {steps.map((label) => (
+        <div key={label} className="flex items-center gap-3 py-2 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          {label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ApplySuccess({ team, onClose }: { team: CatalogTeam; onClose: () => void }) {
+  return (
+    <div className="space-y-4 py-2">
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+        <p className="text-base font-semibold">Team installed</p>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {team.name} was imported into your company. Imported agents, projects, and routines are
+        stamped with catalog provenance.
+      </p>
+      <ul className="space-y-1 text-sm">
+        <li><a className="text-primary hover:underline" href="/agents/all">View imported agents →</a></li>
+        <li><a className="text-primary hover:underline" href="/projects">View imported projects →</a></li>
+        <li><a className="text-primary hover:underline" href="/routines">View routines →</a></li>
+        <li><a className="text-primary hover:underline" href="/activity">View activity log →</a></li>
+      </ul>
+      <DialogFooter>
+        <Button onClick={onClose}>Done</Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Browse list
+// ---------------------------------------------------------------------------
+
+function TeamRow({
+  team,
+  selected,
+  onSelect,
+}: {
+  team: CatalogTeam;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const risk = teamRisk(team);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "flex w-full flex-col gap-1 border-b border-border/60 px-3 py-2.5 text-left transition-colors hover:bg-accent/30",
+        selected && "bg-accent/40",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Users2 className={cn("h-3.5 w-3.5 text-muted-foreground", team.kind === "optional" && "opacity-70")} />
+        <span className={cn("line-clamp-2 text-[13px] font-medium", selected && "text-foreground")}>
+          {team.name}
+        </span>
+        {risk !== "safe" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <AlertTriangle className={cn("ml-auto h-3.5 w-3.5", risk === "blocked" ? "text-rose-500" : "text-amber-500")} />
+            </TooltipTrigger>
+            <TooltipContent>Has external sources</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span>
+          {team.counts.agents}a · {team.counts.projects}p · {team.counts.routines}r · {skillCount(team)}s
+        </span>
+        <TrustChip level={team.trustLevel} iconOnly />
+      </div>
+    </button>
+  );
+}
+
+type KindFilter = "all" | "bundled" | "optional";
+type RiskFilter = "any" | "safe" | "has_warnings" | "blocked";
+
+function matchesSearch(team: CatalogTeam, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  const haystack = [
+    team.name,
+    team.description,
+    team.category,
+    ...team.tags,
+    ...team.agentSlugs,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(needle);
+}
+
+export function TeamCatalog() {
+  const { "*": routePath } = useParams<{ "*": string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { selectedCompanyId } = useCompany();
+  const { setBreadcrumbs } = useBreadcrumbs();
+  const { pushToast } = useToastActions();
+
+  const parsedRoute = useMemo(() => parseTeamRoute(routePath), [routePath]);
+  const selectedRef = parsedRoute.catalogRef;
+  const selectedFilePath = parsedRoute.filePath;
+
+  const q = searchParams.get("q") ?? "";
+  const kindFilter = (searchParams.get("kind") as KindFilter) ?? "all";
+  const categoryFilter = searchParams.get("category") ?? "";
+  const riskFilter = (searchParams.get("risk") as RiskFilter) ?? "any";
+
+  const [installOpen, setInstallOpen] = useState(false);
+
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: "Org Chart", href: "/org" },
+      { label: "Teams", href: "/teams" },
+    ]);
+  }, [setBreadcrumbs]);
+
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.teamCatalog.catalog({ kind: kindFilter === "all" ? undefined : kindFilter }),
+    queryFn: () => teamCatalogApi.catalogList(kindFilter === "all" ? {} : { kind: kindFilter }),
+    enabled: Boolean(selectedCompanyId),
+  });
+
+  const teams = catalogQuery.data ?? [];
+
+  const categories = useMemo(
+    () => Array.from(new Set(teams.map((t) => t.category))).sort(),
+    [teams],
+  );
+
+  const filtered = useMemo(() => {
+    return teams.filter((team) => {
+      if (kindFilter !== "all" && team.kind !== kindFilter) return false;
+      if (categoryFilter && team.category !== categoryFilter) return false;
+      if (riskFilter !== "any" && teamRisk(team) !== riskFilter) return false;
+      if (!matchesSearch(team, q)) return false;
+      return true;
+    });
+  }, [teams, kindFilter, categoryFilter, riskFilter, q]);
+
+  const selectedTeam = useMemo(
+    () => teams.find((t) => t.id === selectedRef || t.key === selectedRef || t.slug === selectedRef) ?? null,
+    [teams, selectedRef],
+  );
+
+  // Auto-select the first team when none is in the route.
+  useEffect(() => {
+    if (!selectedRef && filtered[0]) {
+      navigate(teamRoute(filtered[0].id), { replace: true });
+    }
+  }, [selectedRef, filtered, navigate]);
+
+  const fileQuery = useQuery({
+    queryKey: queryKeys.teamCatalog.catalogFile(selectedTeam?.id ?? "", selectedFilePath ?? ""),
+    queryFn: () => teamCatalogApi.catalogFile(selectedTeam!.id, selectedFilePath!),
+    enabled: Boolean(selectedTeam && selectedFilePath),
+  });
+
+  const agentsQuery = useQuery({
+    queryKey: queryKeys.agents.list(selectedCompanyId ?? ""),
+    queryFn: () => agentsApi.list(selectedCompanyId!),
+    enabled: Boolean(selectedCompanyId),
+  });
+
+  function setFilterParam(key: string, value: string | null) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value === null || value === "" || value === "all" || value === "any") next.delete(key);
+      else next.set(key, value);
+      return next;
+    });
+  }
+
+  const anyFilterActive = q !== "" || kindFilter !== "all" || categoryFilter !== "" || riskFilter !== "any";
+
+  const grouped = useMemo(() => {
+    const bundled = filtered.filter((t) => t.kind === "bundled");
+    const optional = filtered.filter((t) => t.kind === "optional");
+    return { bundled, optional };
+  }, [filtered]);
+
+  const canInstall = true; // server enforces; UI shows the affordance to operators
+
+  if (!selectedCompanyId) {
+    return (
+      <div className="p-8">
+        <EmptyState icon={Users2} message="Select a company to browse the team catalog." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+        <h1 className="text-lg font-semibold">Teams</h1>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={q}
+            onChange={(e) => setFilterParam("q", e.target.value)}
+            placeholder="Search teams"
+            className="h-8 w-56 pl-8"
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8">
+              <Filter className="h-3.5 w-3.5" />
+              {kindFilter === "all" ? "All kinds" : kindFilter === "bundled" ? "Bundled" : "Optional"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Kind</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={kindFilter} onValueChange={(v) => setFilterParam("kind", v)}>
+              <DropdownMenuRadioItem value="all">All kinds</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="bundled">Bundled</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="optional">Optional</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {categories.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8">
+                {categoryFilter ? `Category · ${titleCase(categoryFilter)}` : "All categories"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Category</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={categoryFilter} onValueChange={(v) => setFilterParam("category", v)}>
+                <DropdownMenuRadioItem value="">All categories</DropdownMenuRadioItem>
+                {categories.map((cat) => (
+                  <DropdownMenuRadioItem key={cat} value={cat}>{titleCase(cat)}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8">
+              {riskFilter === "any" ? "Any risk" : riskFilter === "safe" ? "Safe only" : riskFilter === "has_warnings" ? "Has warnings" : "Blocked"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Risk</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={riskFilter} onValueChange={(v) => setFilterParam("risk", v)}>
+              <DropdownMenuRadioItem value="any">Any risk</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="safe">Safe only</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="has_warnings">Has warnings</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="blocked">Blocked</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            {anyFilterActive && (
+              <>
+                <DropdownMenuSeparator />
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setSearchParams(new URLSearchParams())}
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset filters
+                </button>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {anyFilterActive && (
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setSearchParams(new URLSearchParams())}>
+            Reset filters
+          </Button>
+        )}
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        {/* List column */}
+        <div className="w-[28rem] shrink-0 overflow-auto border-r border-border">
+          {catalogQuery.isLoading ? (
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : catalogQuery.isError ? (
+            <div className="p-4">
+              <div role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-700 dark:text-rose-300">
+                Failed to load team catalog.
+              </div>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => catalogQuery.refetch()}>
+                <RotateCcw className="h-3.5 w-3.5" /> Retry
+              </Button>
+            </div>
+          ) : teams.length === 0 ? (
+            <EmptyState icon={Users2} message="No team catalog configured." />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              message="No teams match this filter."
+              action="Reset filters"
+              onAction={() => setSearchParams(new URLSearchParams())}
+            />
+          ) : (
+            <div>
+              {grouped.bundled.length > 0 && (
+                <>
+                  <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Bundled · {grouped.bundled.length}
+                  </div>
+                  {grouped.bundled.map((team) => (
+                    <TeamRow
+                      key={team.id}
+                      team={team}
+                      selected={team.id === selectedTeam?.id}
+                      onSelect={() => navigate(teamRoute(team.id))}
+                    />
+                  ))}
+                </>
+              )}
+              {grouped.optional.length > 0 && (
+                <>
+                  <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Optional · {grouped.optional.length}
+                  </div>
+                  {grouped.optional.map((team) => (
+                    <TeamRow
+                      key={team.id}
+                      team={team}
+                      selected={team.id === selectedTeam?.id}
+                      onSelect={() => navigate(teamRoute(team.id))}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Detail pane */}
+        {selectedTeam ? (
+          <TeamDetailPane
+            team={selectedTeam}
+            selectedPath={selectedFilePath}
+            onSelectFile={(path) =>
+              navigate(path ? teamRoute(selectedTeam.id, path) : teamRoute(selectedTeam.id))
+            }
+            onInstall={() => setInstallOpen(true)}
+            canInstall={canInstall}
+            fileContent={fileQuery.data?.content ?? null}
+          />
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+            Select a team to view details.
+          </div>
+        )}
+      </div>
+
+      {selectedTeam && installOpen && (
+        <TeamInstallerDialog
+          team={selectedTeam}
+          companyId={selectedCompanyId}
+          agents={agentsQuery.data ?? []}
+          open={installOpen}
+          onClose={() => setInstallOpen(false)}
+          onInstalled={() => {
+            pushToast({ tone: "success", title: "Team installed", body: `${selectedTeam.name} was imported.` });
+          }}
+        />
+      )}
+    </div>
+  );
+}
