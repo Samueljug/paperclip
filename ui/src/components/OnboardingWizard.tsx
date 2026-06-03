@@ -338,13 +338,18 @@ function loadSavedState(): Record<string, unknown> | null {
 }
 
 export function OnboardingWizard() {
-  const { onboardingOpen, onboardingOptions, closeOnboarding } = useDialog();
+  const {
+    onboardingOpen,
+    onboardingOptions,
+    closeOnboarding,
+    onboardingRouteDismissed: routeDismissed,
+    setOnboardingRouteDismissed: setRouteDismissed,
+  } = useDialog();
   const { companies, setSelectedCompanyId, loading: companiesLoading } = useCompany();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const { companyPrefix } = useParams<{ companyPrefix?: string }>();
-  const [routeDismissed, setRouteDismissed] = useState(false);
 
   // Sync disabled adapter types from server so the adapter grid filters them out.
   const disabledTypes = useDisabledAdaptersSync();

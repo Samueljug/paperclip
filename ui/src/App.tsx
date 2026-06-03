@@ -61,9 +61,12 @@ import { InviteLandingPage } from "./pages/InviteLanding";
 import { JoinRequestQueue } from "./pages/JoinRequestQueue";
 import { NotFoundPage } from "./pages/NotFound";
 import { useCompany } from "./context/CompanyContext";
-import { useDialogActions } from "./context/DialogContext";
+import { useDialogActions, useDialogState } from "./context/DialogContext";
 import { loadLastInboxTab } from "./lib/inbox";
-import { shouldRedirectCompanylessRouteToOnboarding } from "./lib/onboarding-route";
+import {
+  isOnboardingWizardActive,
+  shouldRedirectCompanylessRouteToOnboarding,
+} from "./lib/onboarding-route";
 
 function boardRoutes() {
   return (
@@ -166,7 +169,17 @@ function LegacySettingsRedirect() {
 function OnboardingRoutePage() {
   const { companies } = useCompany();
   const { openOnboarding } = useDialogActions();
+  const { onboardingOpen, onboardingRouteDismissed } = useDialogState();
   const { companyPrefix } = useParams<{ companyPrefix?: string }>();
+
+  // The OnboardingWizard auto-opens on this route (and can also be opened
+  // explicitly). While it is showing it covers the whole screen, so the
+  // launcher card below must not stay interactive behind it — otherwise users
+  // can tab/click through to the form behind the modal (PAP-52). The launcher
+  // only needs to render as a re-entry point once the wizard is dismissed.
+  if (isOnboardingWizardActive({ onboardingOpen, routeDismissed: onboardingRouteDismissed })) {
+    return null;
+  }
   const matchedCompany = companyPrefix
     ? companies.find((company) => company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase()) ?? null
     : null;

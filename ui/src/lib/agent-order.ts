@@ -91,6 +91,21 @@ export function writeAgentSortMode(storageKey: string, sortMode: AgentSidebarSor
   }
 }
 
+// Leadership roles surface at the top of each sibling group so the company's
+// lead (typically the freshly-hired CEO) is visible without scrolling the
+// sidebar (PAP-52). Anything outside this list falls back to alphabetical.
+const ROLE_SORT_PRIORITY: Record<string, number> = {
+  ceo: 0,
+  cto: 1,
+  cfo: 2,
+  cmo: 3,
+};
+
+function rolePriority(agent: Agent): number {
+  const role = typeof agent.role === "string" ? agent.role.toLowerCase() : "";
+  return ROLE_SORT_PRIORITY[role] ?? Number.MAX_SAFE_INTEGER;
+}
+
 export function sortAgentsByDefaultSidebarOrder(agents: Agent[]): Agent[] {
   if (agents.length === 0) return [];
 
@@ -104,7 +119,11 @@ export function sortAgentsByDefaultSidebarOrder(agents: Agent[]): Agent[] {
   }
 
   for (const siblings of childrenOf.values()) {
-    siblings.sort((left, right) => left.name.localeCompare(right.name));
+    siblings.sort((left, right) => {
+      const priorityDiff = rolePriority(left) - rolePriority(right);
+      if (priorityDiff !== 0) return priorityDiff;
+      return left.name.localeCompare(right.name);
+    });
   }
 
   const sorted: Agent[] = [];
