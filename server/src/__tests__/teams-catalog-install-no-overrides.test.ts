@@ -58,6 +58,7 @@ describeEmbeddedPostgres("teams catalog install with no caller adapter overrides
         name: agents.name,
         role: agents.role,
         adapterType: agents.adapterType,
+        permissions: agents.permissions,
       })
       .from(agents)
       .where(eq(agents.companyId, companyId));
@@ -112,6 +113,7 @@ describeEmbeddedPostgres("teams catalog install with no caller adapter overrides
     const adapterTypes = Array.from(byName.values()).map((row) => row.adapterType);
     expect(adapterTypes).toEqual(["claude_local", "claude_local", "claude_local"]);
     expect(adapterTypes).not.toContain("process");
+    expect(byName.get("CTO")?.permissions).toMatchObject({ canCreateAgents: true });
   });
 
   it("honors an explicit caller adapter override for a single slug while defaulting the rest to claude_local", async () => {

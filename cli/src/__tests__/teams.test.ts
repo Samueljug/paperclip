@@ -353,6 +353,155 @@ describe("teams CLI commands", () => {
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toEqual(result);
   });
 
+  it("requests board approval when agent-run install lacks create-agent permission", async () => {
+    const approval = {
+      id: "approval-1",
+      companyId: "company-1",
+      type: "request_board_approval",
+      requestedByAgentId: "agent-1",
+      requestedByUserId: null,
+      status: "pending",
+      payload: {},
+      decisionNote: null,
+      decidedByUserId: null,
+      decidedAt: null,
+      createdAt: "2026-06-04T00:00:00.000Z",
+      updatedAt: "2026-06-04T00:00:00.000Z",
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: "Missing permission: can create agents" }, 403))
+      .mockResolvedValueOnce(jsonResponse(approval, 201));
+
+    await runCommand([
+      "teams",
+      "install",
+      "product-engineering",
+      "--target-manager-agent-id",
+      "manager-1",
+      "--collision-strategy",
+      "rename",
+      "--company-id",
+      "company-1",
+      "--request-approval-on-forbidden",
+      "--approval-issue-id",
+      "11111111-1111-4111-8111-111111111111",
+      "--api-base",
+      "http://paperclip.test",
+      "--api-key",
+      "token",
+      "--json",
+    ]);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://paperclip.test/api/companies/company-1/teams/catalog/ref/install?ref=product-engineering",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          targetManagerAgentId: "manager-1",
+          collisionStrategy: "rename",
+        }),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://paperclip.test/api/companies/company-1/approvals",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(String),
+      }),
+    );
+    const approvalPayload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(approvalPayload).toMatchObject({
+      type: "request_board_approval",
+      issueIds: ["11111111-1111-4111-8111-111111111111"],
+      payload: {
+        title: "Approve catalog team install: product-engineering",
+        installAttempt: {
+          companyId: "company-1",
+          catalogRef: "product-engineering",
+          deniedReason: "Missing permission: can create agents",
+          options: {
+            targetManagerAgentId: "manager-1",
+            collisionStrategy: "rename",
+          },
+        },
+      },
+    });
+    const rendered = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
+    expect(rendered).toMatchObject({
+      status: "approval_requested",
+      approval,
+      installAttempt: {
+        companyId: "company-1",
+        catalogRef: "product-engineering",
+        deniedReason: "Missing permission: can create agents",
+      },
+    });
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("auto-requests board approval for forbidden installs inside a Paperclip task run", async () => {
+    process.env.PAPERCLIP_TASK_ID = "11111111-1111-4111-8111-111111111111";
+    const approval = {
+      id: "approval-2",
+      companyId: "company-1",
+      type: "request_board_approval",
+      requestedByAgentId: "agent-1",
+      requestedByUserId: null,
+      status: "pending",
+      payload: {},
+      decisionNote: null,
+      decidedByUserId: null,
+      decidedAt: null,
+      createdAt: "2026-06-04T00:00:00.000Z",
+      updatedAt: "2026-06-04T00:00:00.000Z",
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: "Missing permission: can create agents" }, 403))
+      .mockResolvedValueOnce(jsonResponse(approval, 201));
+
+    await runCommand([
+      "teams",
+      "install",
+      "product-engineering",
+      "--company-id",
+      "company-1",
+      "--api-base",
+      "http://paperclip.test",
+      "--api-key",
+      "token",
+      "--json",
+    ]);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://paperclip.test/api/companies/company-1/approvals",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(String),
+      }),
+    );
+    const approvalPayload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(approvalPayload).toMatchObject({
+      type: "request_board_approval",
+      issueIds: ["11111111-1111-4111-8111-111111111111"],
+      payload: {
+        installAttempt: {
+          companyId: "company-1",
+          catalogRef: "product-engineering",
+          deniedReason: "Missing permission: can create agents",
+        },
+      },
+    });
+    expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toMatchObject({
+      status: "approval_requested",
+      approval,
+    });
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
   it("surfaces server blocks for unsafe local-path catalog team sources", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       error: 'Local path skill source "../unsafe" is development-only and is not allowed for catalog team install.',

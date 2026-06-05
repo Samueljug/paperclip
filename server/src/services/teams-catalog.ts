@@ -344,6 +344,59 @@ function renderStringArrayYaml(key: string, values: string[]) {
   ];
 }
 
+function renderYamlBlock(value: unknown, indentLevel = 0): string[] {
+  const indent = "  ".repeat(indentLevel);
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return [`${indent}[]`];
+    const lines: string[] = [];
+    for (const entry of value) {
+      if (
+        entry === null ||
+        typeof entry === "string" ||
+        typeof entry === "number" ||
+        typeof entry === "boolean" ||
+        (Array.isArray(entry) && entry.length === 0) ||
+        (isPlainRecord(entry) && Object.keys(entry).length === 0)
+      ) {
+        lines.push(`${indent}- ${yamlScalar(entry as string | number | boolean | null)}`);
+        continue;
+      }
+      lines.push(`${indent}-`);
+      lines.push(...renderYamlBlock(entry, indentLevel + 1));
+    }
+    return lines;
+  }
+
+  if (isPlainRecord(value)) {
+    const entries = Object.entries(value).filter(([, entry]) => entry !== undefined);
+    if (entries.length === 0) return [`${indent}{}`];
+    const lines: string[] = [];
+    for (const [key, entry] of entries) {
+      if (
+        entry === null ||
+        typeof entry === "string" ||
+        typeof entry === "number" ||
+        typeof entry === "boolean" ||
+        (Array.isArray(entry) && entry.length === 0) ||
+        (isPlainRecord(entry) && Object.keys(entry).length === 0)
+      ) {
+        lines.push(`${indent}${key}: ${yamlScalar(entry as string | number | boolean | null)}`);
+        continue;
+      }
+      lines.push(`${indent}${key}:`);
+      lines.push(...renderYamlBlock(entry, indentLevel + 1));
+    }
+    return lines;
+  }
+
+  return [`${indent}${yamlScalar(String(value))}`];
+}
+
+function renderYamlFile(value: Record<string, unknown>) {
+  return `${renderYamlBlock(value).join("\n")}\n`;
+}
+
 function renderSyntheticCompanyMarkdown(team: CatalogTeam) {
   const lines = [
     "---",
@@ -386,43 +439,61 @@ function renderCatalogProvenanceYaml(team: CatalogTeam, targetManager: CatalogTa
     .map((file) => normalizeAgentUrlKey(path.posix.basename(path.posix.dirname(file.path))))
     .filter((slug): slug is string => Boolean(slug));
 
-  const renderEntity = (slug: string, opts?: { reparentRoot?: boolean }) => [
-    `  ${slug}:`,
-    ...(opts?.reparentRoot && targetManager ? [
-      `    reportsToExistingAgentId: ${yamlScalar(targetManager.agentId)}`,
-      `    reportsToExistingAgentSlug: ${yamlScalar(targetManager.slug)}`,
-    ] : []),
-    "    metadata:",
-    "      paperclip:",
-    "        catalogTeam:",
-    `          catalogId: ${yamlScalar(provenance.catalogId)}`,
-    `          catalogKey: ${yamlScalar(provenance.catalogKey)}`,
-    `          catalogKind: ${yamlScalar(provenance.catalogKind)}`,
-    `          catalogCategory: ${yamlScalar(provenance.catalogCategory)}`,
-    `          catalogSlug: ${yamlScalar(provenance.catalogSlug)}`,
-    `          packageName: ${yamlScalar(provenance.packageName)}`,
-    `          packageVersion: ${yamlScalar(provenance.packageVersion)}`,
-    `          originHash: ${yamlScalar(provenance.originHash)}`,
-  ];
+  const renderEntity = (slug: string, opts?: { reparentRoot?: boolean }) => ({
+    ...(opts?.reparentRoot && targetManager
+      ? {
+          reportsToExistingAgentId: targetManager.agentId,
+          reportsToExistingAgentSlug: targetManager.slug,
+        }
+      : {}),
+    metadata: {
+      paperclip: {
+        catalogTeam: {
+          catalogId: provenance.catalogId,
+          catalogKey: provenance.catalogKey,
+          catalogKind: provenance.catalogKind,
+          catalogCategory: provenance.catalogCategory,
+          catalogSlug: provenance.catalogSlug,
+          packageName: provenance.packageName,
+          packageVersion: provenance.packageVersion,
+          originHash: provenance.originHash,
+        },
+      },
+    },
+  });
 
-  const lines = [
-    "schema: paperclip/v1",
-    "agents:",
-    ...agentSlugs.flatMap((slug) =>
+  const extension: Record<string, unknown> = {
+    schema: "paperclip/v1",
+    agents: Object.fromEntries(agentSlugs.map((slug) => [
+      slug,
       renderEntity(slug, {
         reparentRoot: Boolean(targetManager && team.rootAgentSlugs.includes(slug)),
       }),
-    ),
-  ];
+    ])),
+  };
   if (projectSlugs.length > 0) {
-    lines.push("projects:");
-    lines.push(...projectSlugs.flatMap((slug) => renderEntity(slug)));
+    extension.projects = Object.fromEntries(projectSlugs.map((slug) => [slug, renderEntity(slug)]));
   }
   if (taskSlugs.length > 0) {
-    lines.push("tasks:");
-    lines.push(...Array.from(new Set(taskSlugs)).sort().flatMap((slug) => renderEntity(slug)));
+    extension.tasks = Object.fromEntries(Array.from(new Set(taskSlugs)).sort().map((slug) => [slug, renderEntity(slug)]));
   }
-  return `${lines.join("\n")}\n`;
+  return renderYamlFile(extension);
+}
+
+function mergePlainRecords(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    const existing = merged[key];
+    if (isPlainRecord(existing) && isPlainRecord(value)) {
+      merged[key] = mergePlainRecords(existing, value);
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
 }
 
 interface MarkdownDoc {
@@ -457,30 +528,69 @@ function parseYamlFrontmatter(raw: string): Record<string, unknown> {
       content: line.trim(),
     }))
     .filter((line) => line.content.length > 0 && !line.content.startsWith("#"));
+  if (lines.length === 0) return {};
+  const parsed = parseYamlBlock(lines, 0, lines[0]!.indent);
+  return isPlainRecord(parsed.value) ? parsed.value : {};
+}
+
+function parseYamlBlock(
+  lines: Array<{ indent: number; content: string }>,
+  startIndex: number,
+  indentLevel: number,
+): { value: unknown; nextIndex: number } {
+  let index = startIndex;
+  if (index >= lines.length || lines[index]!.indent < indentLevel) {
+    return { value: {}, nextIndex: index };
+  }
+
+  const isArray = lines[index]!.indent === indentLevel && lines[index]!.content.startsWith("-");
+  if (isArray) {
+    const values: unknown[] = [];
+    while (index < lines.length) {
+      const line = lines[index]!;
+      if (line.indent < indentLevel) break;
+      if (line.indent !== indentLevel || !line.content.startsWith("-")) break;
+
+      const remainder = line.content.slice(1).trim();
+      index += 1;
+      if (!remainder) {
+        const nested = parseYamlBlock(lines, index, indentLevel + 2);
+        values.push(nested.value);
+        index = nested.nextIndex;
+        continue;
+      }
+
+      values.push(parseYamlScalar(remainder));
+    }
+    return { value: values, nextIndex: index };
+  }
+
   const record: Record<string, unknown> = {};
-  for (let index = 0; index < lines.length; index += 1) {
+  while (index < lines.length) {
     const line = lines[index]!;
-    if (line.indent !== 0) continue;
+    if (line.indent < indentLevel) break;
+    if (line.indent !== indentLevel) {
+      index += 1;
+      continue;
+    }
+
     const separatorIndex = line.content.indexOf(":");
-    if (separatorIndex <= 0) continue;
+    if (separatorIndex <= 0) {
+      index += 1;
+      continue;
+    }
     const key = line.content.slice(0, separatorIndex).trim();
     const remainder = line.content.slice(separatorIndex + 1).trim();
+    index += 1;
     if (remainder) {
       record[key] = parseYamlScalar(remainder);
       continue;
     }
-    const values: string[] = [];
-    while (index + 1 < lines.length && lines[index + 1]!.indent > line.indent) {
-      const next = lines[index + 1]!;
-      if (next.indent === line.indent + 2 && next.content.startsWith("-")) {
-        const value = next.content.slice(1).trim();
-        if (value) values.push(String(parseYamlScalar(value)));
-      }
-      index += 1;
-    }
-    record[key] = values;
+    const nested = parseYamlBlock(lines, index, indentLevel + 2);
+    record[key] = nested.value;
+    index = nested.nextIndex;
   }
-  return record;
+  return { value: record, nextIndex: index };
 }
 
 function parseFrontmatterMarkdown(raw: string): MarkdownDoc {
@@ -765,7 +875,12 @@ export function teamsCatalogService(db: Db) {
 
     const targetManager = await resolveTargetManagerReference(companyId, options);
     const files = await readCatalogTeamSourceFiles(team);
-    files[".paperclip.yaml"] = renderCatalogProvenanceYaml(team, targetManager);
+    const existingExtension =
+      typeof files[".paperclip.yaml"] === "string"
+        ? parseYamlFrontmatter(files[".paperclip.yaml"])
+        : {};
+    const generatedExtension = parseYamlFrontmatter(renderCatalogProvenanceYaml(team, targetManager));
+    files[".paperclip.yaml"] = renderYamlFile(mergePlainRecords(existingExtension, generatedExtension));
     rewriteAgentCatalogSkillRefs(team, files);
 
     return {

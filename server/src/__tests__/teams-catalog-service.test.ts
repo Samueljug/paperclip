@@ -128,6 +128,31 @@ describe("teamsCatalogService", () => {
     expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"ceo\""));
   });
 
+  it("preserves package-declared Paperclip sidecar permissions while adding generated catalog provenance", async () => {
+    const svc = teamsCatalogService({} as any);
+
+    const prepared = await svc.prepareCatalogTeamSource("company-1", "product-engineering");
+
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("permissions:"));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("catalogTeam:"));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
+  });
+
+  it("preserves package sidecar permissions when generated target-manager metadata is merged onto the same root agent", async () => {
+    const svc = teamsCatalogService({} as any);
+
+    const prepared = await svc.prepareCatalogTeamSource("company-1", "product-engineering", {
+      targetManagerAgentId: "manager-1",
+    });
+
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("permissions:"));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("canCreateAgents: true"));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentId: \"manager-1\""));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("reportsToExistingAgentSlug: \"engineering-manager\""));
+    expect(prepared.source.files[".paperclip.yaml"]).toEqual(expect.stringContaining("catalogSlug: \"product-engineering\""));
+  });
+
   it("rejects missing target-manager slugs instead of emitting unresolved reparent metadata", async () => {
     mockAgentService.list.mockResolvedValue([]);
     const svc = teamsCatalogService({} as any);

@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import type {
+  Approval,
   CatalogTeam,
   CatalogTeamImportPreviewResult,
   CatalogTeamInstallResult,
@@ -10,6 +11,7 @@ import type {
 } from "@paperclipai/shared";
 import {
   addCommonClientOptions,
+  apiPath,
   formatInlineRecord,
   handleCommandError,
   printOutput,
@@ -17,6 +19,7 @@ import {
   type BaseClientOptions,
   type ResolvedClientContext,
 } from "./common.js";
+import { ApiRequestError } from "../../client/http.js";
 
 interface TeamBrowseOptions extends BaseClientOptions {
   kind?: string;
@@ -39,7 +42,21 @@ interface TeamPreviewOptions extends BaseClientOptions {
   allowLocalPathSources?: boolean;
 }
 
-interface TeamInstallOptions extends TeamPreviewOptions {}
+interface TeamInstallOptions extends TeamPreviewOptions {
+  requestApprovalOnForbidden?: boolean;
+  approvalIssueId?: string;
+}
+
+interface TeamInstallApprovalFallbackResult {
+  status: "approval_requested";
+  approval: Approval;
+  installAttempt: {
+    companyId: string;
+    catalogRef: string;
+    options: CatalogTeamInstallOptions;
+    deniedReason: string;
+  };
+}
 
 export function registerTeamCommands(program: Command): void {
   const teams = program.command("teams").description("App-shipped team catalog operations");
@@ -192,12 +209,19 @@ export function registerTeamCommands(program: Command): void {
       .option("--allow-external-sources", "Allow GitHub, URL, or skills.sh skill sources declared by the catalog team", false)
       .option("--allow-unpinned-optional-sources", "Allow optional-team external skill sources that are not pinned to a commit", false)
       .option("--allow-local-path-sources", "Development only: allow local-path skill sources declared by the catalog team", false)
+      .option(
+        "--request-approval-on-forbidden",
+        "When install is denied by agents:create permissions, create a board approval request instead of exiting with the raw 403",
+        false,
+      )
+      .option("--approval-issue-id <id>", "Issue ID to link to the fallback approval request; defaults to PAPERCLIP_TASK_ID when set")
       .action(async (catalogRef: string, opts: TeamInstallOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const installOptions = buildTeamInstallOptions(opts);
           const result = await ctx.api.post<CatalogTeamInstallResult>(
             catalogTeamCompanyPath(ctx.companyId, catalogRef, "install"),
-            buildTeamInstallOptions(opts),
+            installOptions,
           );
           if (ctx.json) {
             printOutput(result, { json: true });
@@ -205,6 +229,20 @@ export function registerTeamCommands(program: Command): void {
           }
           printCatalogTeamInstall(result);
         } catch (err) {
+          if (shouldRequestInstallApproval(err, opts)) {
+            try {
+              const ctx = resolveCommandContext(opts, { requireCompany: true });
+              const fallback = await requestInstallApproval(ctx, catalogRef, buildTeamInstallOptions(opts), opts, err);
+              if (ctx.json) {
+                printOutput(fallback, { json: true });
+                return;
+              }
+              printInstallApprovalRequested(fallback);
+              return;
+            } catch (fallbackErr) {
+              handleCommandError(fallbackErr);
+            }
+          }
           handleCommandError(err);
         }
       }),
@@ -321,6 +359,76 @@ function buildTeamOptions(opts: TeamPreviewOptions): CatalogTeamImportOptions {
 
 function buildTeamInstallOptions(opts: TeamInstallOptions): CatalogTeamInstallOptions {
   return buildTeamOptions(opts);
+}
+
+function shouldRequestInstallApproval(error: unknown, opts: TeamInstallOptions): error is ApiRequestError {
+  return Boolean(
+    (opts.requestApprovalOnForbidden || isPaperclipTaskRun()) &&
+      error instanceof ApiRequestError &&
+      error.status === 403,
+  );
+}
+
+function isPaperclipTaskRun(): boolean {
+  return Boolean(process.env.PAPERCLIP_TASK_ID?.trim());
+}
+
+async function requestInstallApproval(
+  ctx: ResolvedClientContext,
+  catalogRef: string,
+  installOptions: CatalogTeamInstallOptions,
+  opts: TeamInstallOptions,
+  error: ApiRequestError,
+): Promise<TeamInstallApprovalFallbackResult> {
+  if (!ctx.companyId) throw new Error("Company ID is required.");
+  const trimmedRef = catalogRef.trim();
+  const issueIds = resolveApprovalIssueIds(opts);
+  const payload = {
+    type: "request_board_approval",
+    issueIds,
+    payload: {
+      title: `Approve catalog team install: ${trimmedRef}`,
+      summary:
+        `A Paperclip CLI agent-run attempted to install catalog team "${trimmedRef}" into company "${ctx.companyId}", ` +
+        `but the API denied the install with: ${error.message}.`,
+      recommendedAction:
+        "Approve the catalog team source and rerun the install with a board or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",
+      risks: [
+        "Catalog team installation can create agents, projects, tasks, routines, skills, and secret bindings.",
+        "Only approve after checking the catalog source, selected files, target manager, and collision strategy.",
+      ],
+      installAttempt: {
+        companyId: ctx.companyId,
+        catalogRef: trimmedRef,
+        options: installOptions,
+        deniedReason: error.message,
+      },
+    },
+  };
+  const approval = await ctx.api.post<Approval>(apiPath`/api/companies/${ctx.companyId}/approvals`, payload);
+  if (!approval) {
+    throw new Error("Approval request failed.");
+  }
+  return {
+    status: "approval_requested",
+    approval,
+    installAttempt: {
+      companyId: ctx.companyId,
+      catalogRef: trimmedRef,
+      options: installOptions,
+      deniedReason: error.message,
+    },
+  };
+}
+
+function resolveApprovalIssueIds(opts: TeamInstallOptions): string[] | undefined {
+  const issueId = opts.approvalIssueId?.trim() || process.env.PAPERCLIP_TASK_ID?.trim();
+  if (!issueId) return undefined;
+  return isUuidLike(issueId) ? [issueId] : undefined;
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function buildSourcePolicy(opts: TeamPreviewOptions): CatalogTeamSourcePolicy | undefined {
@@ -503,6 +611,20 @@ function printCatalogTeamInstall(result: CatalogTeamInstallResult | null): void 
     `Catalog team installed: ${result.team.name} (${result.team.key}) agents=${result.portabilityImport.agents.length} projects=${result.portabilityImport.projects.length} warnings=${result.warnings.length}`,
   );
   for (const warning of result.warnings) console.log(`warning=${warning}`);
+}
+
+function printInstallApprovalRequested(result: TeamInstallApprovalFallbackResult): void {
+  console.log(
+    formatInlineRecord({
+      status: result.status,
+      approvalId: result.approval.id,
+      approvalStatus: result.approval.status,
+      type: result.approval.type,
+      catalogRef: result.installAttempt.catalogRef,
+      deniedReason: result.installAttempt.deniedReason,
+    }),
+  );
+  console.log("Install was not performed. The board must approve the request and rerun the install with an authorized token.");
 }
 
 function printTable(rows: Array<Record<string, unknown>>): void {
