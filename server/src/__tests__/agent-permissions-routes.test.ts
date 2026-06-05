@@ -396,6 +396,11 @@ describe.sequential("agent permission routes", () => {
 
   it("redacts agent detail for authenticated company members without agent admin permission", async () => {
     mockAccessService.canUser.mockResolvedValue(false);
+    mockAccessService.decide.mockImplementation(async (input: { action?: string }) => ({
+      allowed: input.action === "agent:read",
+      reason: input.action === "agent:read" ? "allow_test_read" : "deny_missing_grant",
+      explanation: input.action === "agent:read" ? "Allowed by test read grant." : "Missing test grant.",
+    }));
 
     const app = await createApp({
       type: "board",
@@ -414,6 +419,11 @@ describe.sequential("agent permission routes", () => {
 
   it("redacts company agent list for authenticated company members without agent admin permission", async () => {
     mockAccessService.canUser.mockResolvedValue(false);
+    mockAccessService.decide.mockImplementation(async (input: { action?: string }) => ({
+      allowed: input.action === "agent:read",
+      reason: input.action === "agent:read" ? "allow_test_read" : "deny_missing_grant",
+      explanation: input.action === "agent:read" ? "Allowed by test read grant." : "Missing test grant.",
+    }));
 
     const app = await createApp({
       type: "board",
