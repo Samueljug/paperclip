@@ -2260,7 +2260,6 @@ export async function buildPaperclipWakePayload(input: {
     }
 
     const deletedAt = row.deletedAt ?? null;
-    const deletedAt = row.deletedAt ?? null;
     const safeRow = deletedAt || input.exposeLowTrustRaw ? row : sanitizeQuarantinedCommentForHigherTrust(row);
     const fullBody = deletedAt ? "" : safeRow.body;
     const allowedBodyChars = Math.min(MAX_INLINE_WAKE_COMMENT_BODY_CHARS, remainingBodyChars);
