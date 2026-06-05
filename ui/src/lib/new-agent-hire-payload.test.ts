@@ -62,6 +62,11 @@ describe("buildNewAgentHirePayload", () => {
               version: 1,
               rawOutputDisposition: "quarantine",
             },
+            trustBoundary: {
+              mode: "low_trust_review",
+              companyId: "company-1",
+              rootIssueId: "issue-root",
+            },
           },
         },
       }),
@@ -75,6 +80,11 @@ describe("buildNewAgentHirePayload", () => {
             id: "low_trust_review",
             version: 1,
             rawOutputDisposition: "quarantine",
+          },
+          trustBoundary: {
+            mode: "low_trust_review",
+            companyId: "company-1",
+            rootIssueId: "issue-root",
           },
         },
       },
