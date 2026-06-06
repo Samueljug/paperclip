@@ -31,14 +31,14 @@ function createItem(overrides: Partial<WorkspaceFileListItem> = {}): WorkspaceFi
     workspaceId: "ws-1",
     contentType: "text/plain; charset=utf-8",
     byteSize: 2048,
-    modifiedAt: null,
+    modifiedAt: new Date(Date.now() - 120_000).toISOString(),
     previewKind: "text",
     capabilities: { preview: true, download: false, listChildren: false },
     ...overrides,
   };
 }
 
-function availableResponse(items: WorkspaceFileListItem[]): WorkspaceFileListResponse {
+function availableResponse(items: WorkspaceFileListItem[], truncated = false): WorkspaceFileListResponse {
   return {
     kind: "workspace_file_list",
     state: "available",
@@ -51,7 +51,7 @@ function availableResponse(items: WorkspaceFileListItem[]): WorkspaceFileListRes
     query: { workspace: "auto", mode: "changed", q: null, limit: 100 },
     items,
     scannedCount: items.length,
-    truncated: false,
+    truncated,
   };
 }
 
@@ -66,6 +66,10 @@ function unavailableResponse(reason: string): WorkspaceFileListResponse {
     scannedCount: 0,
     truncated: false,
   };
+}
+
+function ok(data: WorkspaceFileListResponse) {
+  return { data, isFetching: false, isError: false, error: null, refetch: vi.fn() };
 }
 
 describe("WorkspaceFileBrowser", () => {
@@ -89,82 +93,72 @@ describe("WorkspaceFileBrowser", () => {
     return { root, onOpen };
   }
 
-  it("lists available files and opens one with its relative path and workspace selector", () => {
-    useQueryMock.mockReturnValue({
-      data: availableResponse([createItem(), createItem({ relativePath: "README.md", displayPath: "README.md" })]),
-      isFetching: false,
-      isError: false,
-      error: null,
-      refetch: vi.fn(),
-    });
+  it("renders the Recently changed list as a listbox and opens a row with its relative path", () => {
+    useQueryMock.mockReturnValue(
+      ok(availableResponse([createItem(), createItem({ relativePath: "README.md", displayPath: "README.md" })])),
+    );
 
     const { onOpen } = renderBrowser();
 
+    expect(container.querySelector('[role="listbox"]')).not.toBeNull();
+    expect(container.textContent).toContain("Recently changed");
     expect(container.textContent).toContain("From Isolated workspace");
-    const fileButton = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.getAttribute("title") === "ui/src/pages/IssueDetail.tsx",
+
+    const option = Array.from(container.querySelectorAll('[role="option"]')).find(
+      (el) => el.getAttribute("title") === "ui/src/pages/IssueDetail.tsx",
     );
-    expect(fileButton).not.toBeUndefined();
+    expect(option).not.toBeUndefined();
 
     act(() => {
-      fileButton!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      option!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
-
     expect(onOpen).toHaveBeenCalledWith({ path: "ui/src/pages/IssueDetail.tsx", workspace: "auto" });
   });
 
-  it("shows the remote-workspace state without any file rows", () => {
-    useQueryMock.mockReturnValue({
-      data: unavailableResponse("remote_workspace"),
-      isFetching: false,
-      isError: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-
+  it("does not render a Recent/All toggle", () => {
+    useQueryMock.mockReturnValue(ok(availableResponse([createItem()])));
     renderBrowser();
-    expect(container.textContent).toContain("Remote workspace");
-    expect(container.textContent).not.toContain("From Isolated workspace");
+    expect(container.textContent).not.toContain("All files");
+    expect(container.textContent).not.toContain("Recent changes / All");
+  });
+
+  it("discloses truncation in the footer", () => {
+    useQueryMock.mockReturnValue(ok(availableResponse([createItem()], true)));
+    renderBrowser();
+    expect(container.textContent).toContain("refine the search to narrow");
+  });
+
+  it("opens the highlighted row when Enter is pressed in the search field", () => {
+    useQueryMock.mockReturnValue(ok(availableResponse([createItem()])));
+    const { onOpen } = renderBrowser();
+    const input = container.querySelector("input")!;
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+    expect(onOpen).toHaveBeenCalledWith({ path: "ui/src/pages/IssueDetail.tsx", workspace: "auto" });
+  });
+
+  it("shows the remote-workspace state without file rows", () => {
+    useQueryMock.mockReturnValue(ok(unavailableResponse("remote_workspace")));
+    renderBrowser();
+    expect(container.textContent).toContain("Remote workspace preview not supported");
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
   });
 
   it("shows the no-workspace state when the issue has no workspace", () => {
-    useQueryMock.mockReturnValue({
-      data: unavailableResponse("no_workspace"),
-      isFetching: false,
-      isError: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-
+    useQueryMock.mockReturnValue(ok(unavailableResponse("no_workspace")));
     renderBrowser();
     expect(container.textContent).toContain("No workspace yet");
-  });
-
-  it("offers a fallback to all files when recent-change tracking is unavailable", () => {
-    useQueryMock.mockReturnValue({
-      data: unavailableResponse("changed_unavailable"),
-      isFetching: false,
-      isError: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-
-    renderBrowser();
-    expect(container.textContent).toContain("Recent changes unavailable");
-    const fallback = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("Browse all files"),
-    );
-    expect(fallback).not.toBeUndefined();
   });
 });
 
 describe("describeUnavailable", () => {
-  it("maps each documented reason to a distinct, human-readable title", () => {
-    expect(describeUnavailable("remote_workspace").title).toBe("Remote workspace");
+  it("maps reasons to copy that matches the viewer's denial voice", () => {
+    expect(describeUnavailable("remote_workspace").title).toBe("Remote workspace preview not supported");
     expect(describeUnavailable("no_workspace").title).toBe("No workspace yet");
     expect(describeUnavailable("no_local_workspace").title).toBe("No workspace yet");
-    expect(describeUnavailable("workspace_unavailable").title).toBe("Workspace cleaned up");
-    expect(describeUnavailable("changed_unavailable").title).toBe("Recent changes unavailable");
+    expect(describeUnavailable("workspace_unavailable").title).toBe("Workspace is no longer available");
+    expect(describeUnavailable("archived").title).toBe("Workspace is no longer available");
   });
 
   it("never leaks the raw reason code as the body", () => {

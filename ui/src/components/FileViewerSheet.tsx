@@ -9,6 +9,7 @@ import {
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeft,
   Ban,
   Check,
   Cloud,
@@ -16,10 +17,12 @@ import {
   FileCode2,
   FileSearch,
   FolderOpen,
+  FolderSearch,
   Link2,
   Loader2,
   Lock,
   RefreshCcw,
+  X,
 } from "lucide-react";
 import {
   Sheet,
@@ -37,7 +40,6 @@ import {
   useRequiredFileViewer,
   type FileViewerUrlState,
 } from "@/context/FileViewerContext";
-import { parseWorkspaceFileRef } from "@/lib/workspace-file-parser";
 import { WorkspaceFileBrowser } from "@/components/WorkspaceFileBrowser";
 import type {
   ResolvedWorkspaceResource,
@@ -174,112 +176,6 @@ function FileViewerStateView({
         </div>
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-    </div>
-  );
-}
-
-interface OpenFilePromptProps {
-  onSubmit: (
-    path: string,
-    workspace: WorkspaceFileSelector,
-    line: number | null,
-    column: number | null,
-  ) => void;
-}
-
-function OpenFilePrompt({ onSubmit }: OpenFilePromptProps) {
-  const [value, setValue] = useState("");
-  const [workspace, setWorkspace] = useState<WorkspaceFileSelector>("auto");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    const parsed = parseWorkspaceFileRef(trimmed);
-    if (parsed) {
-      onSubmit(parsed.path, workspace, parsed.line, parsed.column);
-      return;
-    }
-    onSubmit(trimmed, workspace, null, null);
-  };
-
-  return (
-    <form className="space-y-4 p-6" onSubmit={handleSubmit}>
-      <label htmlFor="paperclip-file-viewer-input" className="sr-only">
-        Workspace-relative file path
-      </label>
-      <input
-        ref={inputRef}
-        id="paperclip-file-viewer-input"
-        type="text"
-        className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        placeholder="e.g. ui/src/pages/IssueDetail.tsx:42"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        autoComplete="off"
-        spellCheck={false}
-      />
-      <fieldset className="space-y-2">
-        <legend className="text-xs text-muted-foreground">Workspace</legend>
-        <div className="flex flex-wrap gap-2">
-          {(["auto", "execution", "project"] as const).map((option) => (
-            <label
-              key={option}
-              className={cn(
-                "cursor-pointer rounded-md border px-3 py-1 text-xs capitalize",
-                workspace === option
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-foreground/80 hover:bg-accent/40",
-              )}
-            >
-              <input
-                type="radio"
-                name="paperclip-file-viewer-workspace"
-                value={option}
-                checked={workspace === option}
-                onChange={() => setWorkspace(option)}
-                className="sr-only"
-              />
-              {option === "auto" ? "Auto (issue default)" : option}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <div className="flex justify-end">
-        <Button type="submit" size="sm" disabled={!value.trim()}>
-          Open file
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-interface FileViewerEmptyStateProps {
-  issueId: string;
-  onBrowseOpen: (ref: { path: string; workspace: WorkspaceFileSelector }) => void;
-  onSubmitPath: OpenFilePromptProps["onSubmit"];
-}
-
-function FileViewerEmptyState({ issueId, onBrowseOpen, onSubmitPath }: FileViewerEmptyStateProps) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <WorkspaceFileBrowser
-        issueId={issueId}
-        onOpen={onBrowseOpen}
-        className="min-h-0 flex-1 p-4 pb-2"
-      />
-      <details className="border-t border-border">
-        <summary className="cursor-pointer list-none px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground">
-          Open a specific path…
-        </summary>
-        <OpenFilePrompt onSubmit={onSubmitPath} />
-      </details>
     </div>
   );
 }
@@ -438,7 +334,12 @@ export function FileViewerSheet({
 }: FileViewerSheetProps) {
   const viewer = useRequiredFileViewer();
   const state = typeof stateProp !== "undefined" ? stateProp : viewer.state;
-  const computedOpen = typeof openProp === "boolean" ? openProp : state !== null || showPromptWhenEmpty;
+  // Browse mode: no file selected, but the sheet was opened to browse/search.
+  const browseMode = state === null && (showPromptWhenEmpty || viewer.browse);
+  // True when the current file was reached from the browse list (drill-down).
+  const cameFromBrowse = state !== null && viewer.browse;
+  const computedOpen =
+    typeof openProp === "boolean" ? openProp : state !== null || showPromptWhenEmpty || viewer.browse;
 
   const [elapsedMs, setElapsedMs] = useState(0);
   const [copiedField, setCopiedField] = useState<"path" | "link" | null>(null);
@@ -506,14 +407,12 @@ export function FileViewerSheet({
     [onOpenChange, viewer],
   );
 
-  const handlePromptSubmit = useCallback(
-    (
-      path: string,
-      workspace: WorkspaceFileSelector,
-      line: number | null,
-      column: number | null,
-    ) => {
-      viewer.open({ path, line, column, workspace });
+  const handleBrowseOpen = useCallback(
+    (ref: { path: string; workspace: WorkspaceFileSelector; line?: number | null; column?: number | null }) => {
+      viewer.open(
+        { path: ref.path, line: ref.line ?? null, column: ref.column ?? null, workspace: ref.workspace },
+        { fromBrowse: true },
+      );
     },
     [viewer],
   );
@@ -556,10 +455,21 @@ export function FileViewerSheet({
         aria-labelledby={FILE_VIEWER_LABELLED_BY_ID}
         aria-describedby={FILE_VIEWER_DESCRIBED_BY_ID}
         showCloseButton={false}
+        onEscapeKeyDown={(event) => {
+          // From a file reached via browse, Esc returns to the list; a second Esc closes.
+          if (cameFromBrowse) {
+            event.preventDefault();
+            viewer.backToFiles();
+          }
+        }}
       >
         <SheetHeader className="border-b border-border gap-1 p-3">
           <div className="flex items-start gap-2">
-            <FileCode2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            {browseMode ? (
+              <FolderSearch aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <FileCode2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            )}
             <div className="min-w-0 flex-1">
               <SheetTitle id={FILE_VIEWER_LABELLED_BY_ID} className="truncate text-sm">
                 {title}
@@ -576,6 +486,19 @@ export function FileViewerSheet({
               </SheetDescription>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              {cameFromBrowse ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => viewer.backToFiles()}
+                  className="h-7 gap-1 px-2 text-xs"
+                  aria-label="Back to files"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Back to files
+                </Button>
+              ) : null}
               {state ? (
                 <Button
                   type="button"
@@ -602,16 +525,30 @@ export function FileViewerSheet({
                   {copiedField === "link" ? <Check className="h-4 w-4 text-green-500" /> : <Link2 className="h-4 w-4" />}
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => handleOpenChange(false)}
-                className="h-7 px-2 text-xs"
-                aria-label="Close file viewer"
-              >
-                Close
-              </Button>
+              {cameFromBrowse ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handleOpenChange(false)}
+                  className="h-7 w-7"
+                  aria-label="Close file viewer"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleOpenChange(false)}
+                  className="h-7 px-2 text-xs"
+                  aria-label="Close file viewer"
+                >
+                  Close
+                </Button>
+              )}
             </div>
           </div>
           {resolvedResource ? (
@@ -668,11 +605,12 @@ export function FileViewerSheet({
                   : null
               }
             />
-          ) : showPromptWhenEmpty ? (
-            <FileViewerEmptyState
+          ) : browseMode ? (
+            <WorkspaceFileBrowser
               issueId={issueId}
-              onBrowseOpen={(ref) => viewer.open({ path: ref.path, line: null, column: null, workspace: ref.workspace })}
-              onSubmitPath={handlePromptSubmit}
+              onOpen={handleBrowseOpen}
+              initialQuery={viewer.query}
+              className="min-h-0 flex-1 p-4"
             />
           ) : null}
         </div>

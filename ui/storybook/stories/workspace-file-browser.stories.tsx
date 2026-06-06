@@ -1,66 +1,66 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { WorkspaceFileListItem, WorkspaceFileListResponse } from "@paperclipai/shared";
-import { WorkspaceFileBrowser } from "@/components/WorkspaceFileBrowser";
+import type {
+  ResolvedWorkspaceResource,
+  WorkspaceFileContent,
+  WorkspaceFileListItem,
+  WorkspaceFileListResponse,
+} from "@paperclipai/shared";
+import { FileViewerProvider, useRequiredFileViewer } from "@/context/FileViewerContext";
+import { FileViewerSheet } from "@/components/FileViewerSheet";
+import { IssueWorkspaceCard } from "@/components/IssueWorkspaceCard";
 import { queryKeys } from "@/lib/queryKeys";
 
 /**
- * Screenshot review surface for PAP-10511 — the issue-page "Browse workspace"
- * fallback. Each story seeds the react-query cache for the default browse query
- * (workspace=auto, mode=changed) so the component renders without a backend.
+ * Screenshot-review surface for PAP-10511, rendering the REAL FileViewerSheet /
+ * IssueWorkspaceCard (not a static frame) so the captures are visual truth.
+ * Stories seed the react-query cache so the components render without a backend.
+ * Capture each at desktop + 360px and in both themes via the Storybook theme global.
  */
 
 const ISSUE_ID = "issue-browse-demo";
 
-function seedKey(issueId: string) {
-  return queryKeys.issues.fileResources(issueId, {
-    workspace: "auto",
-    mode: "changed",
-    q: null,
-    limit: 100,
-  });
+function listKey(issueId: string) {
+  return queryKeys.issues.fileResources(issueId, { workspace: "auto", mode: "changed", q: null, limit: 100 });
 }
 
-function item(relativePath: string, overrides: Partial<WorkspaceFileListItem> = {}): WorkspaceFileListItem {
+function item(relativePath: string, minutesAgo: number, overrides: Partial<WorkspaceFileListItem> = {}): WorkspaceFileListItem {
   return {
     kind: "file",
     provider: "git_worktree",
     title: relativePath.split("/").pop() ?? relativePath,
     relativePath,
     displayPath: relativePath,
-    workspaceLabel: "Isolated workspace",
+    workspaceLabel: "issue execution workspace · PAP-1953",
     workspaceKind: "execution_workspace",
     workspaceId: "ws-1",
     contentType: "text/plain; charset=utf-8",
     byteSize: 2048,
-    modifiedAt: null,
+    modifiedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
     previewKind: "text",
     capabilities: { preview: true, download: false, listChildren: false },
     ...overrides,
   };
 }
 
-const availableData: WorkspaceFileListResponse = {
+const recentList: WorkspaceFileListResponse = {
   kind: "workspace_file_list",
   state: "available",
   workspace: {
     provider: "git_worktree",
-    workspaceLabel: "Isolated workspace",
+    workspaceLabel: "issue execution workspace · PAP-1953",
     workspaceKind: "execution_workspace",
     workspaceId: "ws-1",
   },
   query: { workspace: "auto", mode: "changed", q: null, limit: 100 },
   items: [
-    item("ui/src/components/WorkspaceFileBrowser.tsx"),
-    item("ui/src/components/FileViewerSheet.tsx", { byteSize: 28_400 }),
-    item("server/src/routes/file-resources.ts", { byteSize: 8_120 }),
-    item("packages/shared/src/types/workspace-file-resource.ts", { byteSize: 3_200 }),
-    item("docs/screenshots/preview.png", { previewKind: "image", contentType: "image/png", byteSize: 102_400 }),
-    item(
-      "server/src/services/very/deeply/nested/directory/structure/that/keeps/going/workspace-file-resources.ts",
-      { byteSize: 16_900 },
-    ),
+    item("ui/src/components/WorkspaceFileBrowser.tsx", 2),
+    item("ui/src/components/FileViewerSheet.tsx", 2),
+    item("server/src/routes/file-resources.ts", 14),
+    item("doc/PRODUCT.md", 60),
+    item("packages/shared/src/types/workspace-file-resource.ts", 64),
+    item("server/src/services/very/deeply/nested/structure/workspace-file-resources.ts", 180),
   ],
   scannedCount: 412,
   truncated: true,
@@ -79,45 +79,128 @@ function unavailable(reason: string): WorkspaceFileListResponse {
   };
 }
 
-function SheetFrame({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex h-[560px] w-[420px] flex-col overflow-hidden rounded-lg border border-border bg-background">
-      <div className="border-b border-border p-3">
-        <p className="text-sm font-medium text-foreground">Browse workspace</p>
-        <p className="text-xs text-muted-foreground">Search and preview files from this issue's workspace.</p>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col p-4">{children}</div>
-    </div>
-  );
-}
+const viewedResource: ResolvedWorkspaceResource = {
+  kind: "file",
+  provider: "git_worktree",
+  title: "FileViewerSheet.tsx",
+  displayPath: "ui/src/components/FileViewerSheet.tsx",
+  workspaceLabel: "issue execution workspace · PAP-1953",
+  workspaceKind: "execution_workspace",
+  workspaceId: "ws-1",
+  contentType: "text/plain; charset=utf-8",
+  byteSize: 2048,
+  previewKind: "text",
+  capabilities: { preview: true, download: false, listChildren: false },
+};
 
-function Demo({ data }: { data: WorkspaceFileListResponse }) {
+const viewedContent: WorkspaceFileContent = {
+  resource: viewedResource,
+  content: {
+    encoding: "utf8",
+    data: [
+      "export function FileViewerSheet({ issueId, state, open }: FileViewerSheetProps) {",
+      "  const viewer = useRequiredFileViewer();",
+      "  const browseMode = state === null && (showPromptWhenEmpty || viewer.browse);",
+      "  const cameFromBrowse = state !== null && viewer.browse;",
+      "  // … single sheet, two modes: browse ⇄ view",
+      "  return <Sheet open={open}>…</Sheet>;",
+      "}",
+    ].join("\n"),
+  },
+};
+
+function BrowseSheet({ data }: { data: WorkspaceFileListResponse }) {
   const queryClient = useQueryClient();
-  useMemo(() => {
-    queryClient.setQueryData(seedKey(ISSUE_ID), data);
-  }, [queryClient, data]);
+  queryClient.setQueryData(listKey(ISSUE_ID), data);
   return (
-    <SheetFrame>
-      <WorkspaceFileBrowser
-        issueId={ISSUE_ID}
-        onOpen={(ref) => console.log("open", ref)}
-        className="min-h-0 flex-1"
-      />
-    </SheetFrame>
+    <FileViewerProvider issueId={ISSUE_ID}>
+      <FileViewerSheet issueId={ISSUE_ID} showPromptWhenEmpty />
+    </FileViewerProvider>
   );
 }
 
-const meta: Meta<typeof Demo> = {
+function ViewFromBrowseInner() {
+  const viewer = useRequiredFileViewer();
+  useEffect(() => {
+    viewer.open(
+      { path: "ui/src/components/FileViewerSheet.tsx", line: 3, column: null, workspace: "auto" },
+      { fromBrowse: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <FileViewerSheet issueId={ISSUE_ID} />;
+}
+
+function ViewFromBrowse() {
+  const queryClient = useQueryClient();
+  queryClient.setQueryData(listKey(ISSUE_ID), recentList);
+  queryClient.setQueryData(
+    queryKeys.issues.fileResource(ISSUE_ID, "ui/src/components/FileViewerSheet.tsx", "auto"),
+    viewedResource,
+  );
+  queryClient.setQueryData(
+    queryKeys.issues.fileResourceContent(ISSUE_ID, "ui/src/components/FileViewerSheet.tsx", "auto"),
+    viewedContent,
+  );
+  return (
+    <FileViewerProvider issueId={ISSUE_ID}>
+      <ViewFromBrowseInner />
+    </FileViewerProvider>
+  );
+}
+
+function Placement() {
+  const queryClient = useQueryClient();
+  queryClient.setQueryData(queryKeys.instance.experimentalSettings, {
+    enableEnvironments: false,
+    enableIsolatedWorkspaces: true,
+  });
+  return (
+    <FileViewerProvider issueId={ISSUE_ID}>
+      <div className="mx-auto max-w-3xl space-y-3 p-6">
+        <h3 className="text-sm font-medium text-muted-foreground">Workspace</h3>
+        <IssueWorkspaceCard
+          issue={{
+            companyId: "company-1",
+            projectId: "project-1",
+            projectWorkspaceId: "pw-1",
+            executionWorkspaceId: "ws-1",
+            executionWorkspacePreference: "isolated_workspace",
+            executionWorkspaceSettings: { mode: "isolated_workspace", environmentId: null },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            currentExecutionWorkspace: {
+              id: "ws-1",
+              mode: "isolated_workspace",
+              status: "active",
+              branchName: "PAP-1953-plan-a-file-viewer",
+              cwd: "/srv/paperclip/.../worktrees/PAP-1953",
+              repoUrl: null,
+              projectWorkspaceId: "pw-1",
+              name: "PAP-1953",
+              config: {},
+            } as any,
+          }}
+          project={{ id: "project-1", executionWorkspacePolicy: { enabled: true, defaultMode: "isolated_workspace" } }}
+          onUpdate={() => {}}
+          onBrowseFiles={() => {}}
+          onOpenFileByPath={() => {}}
+        />
+      </div>
+    </FileViewerProvider>
+  );
+}
+
+const meta: Meta = {
   title: "Issue/Workspace File Browser",
-  component: Demo,
-  parameters: { layout: "centered" },
+  parameters: { layout: "fullscreen" },
 };
 export default meta;
 
-type Story = StoryObj<typeof Demo>;
+type Story = StoryObj;
 
-export const RecentChanges: Story = { args: { data: availableData } };
-export const NoWorkspace: Story = { args: { data: unavailable("no_workspace") } };
-export const RemoteWorkspace: Story = { args: { data: unavailable("remote_workspace") } };
-export const CleanedUpWorkspace: Story = { args: { data: unavailable("workspace_unavailable") } };
-export const RecentChangesUnavailable: Story = { args: { data: unavailable("changed_unavailable") } };
+export const BrowseRecent: Story = { render: () => <BrowseSheet data={recentList} /> };
+export const BrowseNoWorkspace: Story = { render: () => <BrowseSheet data={unavailable("no_workspace")} /> };
+export const BrowseRemoteWorkspace: Story = { render: () => <BrowseSheet data={unavailable("remote_workspace")} /> };
+export const BrowseCleanedUpWorkspace: Story = { render: () => <BrowseSheet data={unavailable("workspace_unavailable")} /> };
+export const ViewModeFromBrowse: Story = { render: () => <ViewFromBrowse /> };
+export const CardPlacement: Story = { render: () => <Placement /> };

@@ -136,7 +136,6 @@ import {
   EyeOff,
   Flag,
   FileCode2,
-  FolderSearch,
   Hexagon,
   ListTree,
   MessageSquare,
@@ -4041,6 +4040,8 @@ export function IssueDetail() {
         issue={issue}
         project={resolvedProject}
         onUpdate={(data) => updateIssue.mutate(data)}
+        onBrowseFiles={() => setFileViewerPromptOpen(true)}
+        onOpenFileByPath={() => setFileViewerPromptOpen(true)}
       />
 
       {issue.workProducts && issue.workProducts.length > 0 && (() => {
@@ -4067,19 +4068,6 @@ export function IssueDetail() {
           </div>
         );
       })()}
-
-      <div className="flex justify-start">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
-          onClick={() => setFileViewerPromptOpen(true)}
-          title="Browse and search files in this issue's workspace"
-        >
-          <FolderSearch className="h-3.5 w-3.5" />
-          Browse workspace
-        </Button>
-      </div>
 
       <Separator />
 
@@ -4418,8 +4406,8 @@ function IssueFileViewer({
   onPromptOpenChange: (next: boolean) => void;
 }) {
   const viewer = useRequiredFileViewer();
-  const open = viewer.state !== null || promptOpen;
-  const showPromptWhenEmpty = promptOpen && viewer.state === null;
+  const open = viewer.state !== null || viewer.browse || promptOpen;
+  const showPromptWhenEmpty = (promptOpen || viewer.browse) && viewer.state === null;
   return (
     <FileViewerSheet
       issueId={issueId}
@@ -4428,7 +4416,8 @@ function IssueFileViewer({
       onOpenChange={(next) => {
         if (!next) {
           onPromptOpenChange(false);
-          if (viewer.state !== null) viewer.close();
+          // Clears any file view and browse state from the URL.
+          viewer.close();
         }
       }}
     />
