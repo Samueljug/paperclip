@@ -1502,6 +1502,49 @@ describe("IssueDetail", () => {
     await flushReact();
 
     expect(mockIssuesApi.update).toHaveBeenLastCalledWith("PAP-1", { status: "cancelled" });
+    expect(mockHeartbeatsApi.cancel).toHaveBeenCalledTimes(2);
+    expect(mockHeartbeatsApi.cancel.mock.invocationCallOrder[1])
+      .toBeLessThan(mockIssuesApi.update.mock.invocationCallOrder[1]);
+  });
+
+  it("reports partial success when run finalization stops the run but task status update fails", async () => {
+    mockIssuesApi.get.mockResolvedValue(createIssue({
+      status: "in_progress",
+      assigneeAgentId: "agent-1",
+      executionRunId: "run-active-1",
+    }));
+    mockIssuesApi.update.mockRejectedValue(new Error("Status write failed"));
+    mockHeartbeatsApi.cancel.mockResolvedValue(undefined);
+    mockAgentsApi.list.mockResolvedValue([createAgent()]);
+    mockAuthApi.getSession.mockResolvedValue({
+      session: { userId: "user-1" },
+      user: { id: "user-1" },
+    });
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IssueDetail />
+        </QueryClientProvider>,
+      );
+    });
+    await flushReact();
+
+    const stopAndDoneButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Stop and done");
+    expect(stopAndDoneButton).toBeTruthy();
+
+    await act(async () => {
+      stopAndDoneButton!.click();
+    });
+    await flushReact();
+
+    expect(mockHeartbeatsApi.cancel).toHaveBeenCalledWith("run-active-1");
+    expect(mockPushToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Run stopped; task update failed",
+      body: "Run was stopped, but updating the task failed: Status write failed",
+      tone: "error",
+    }));
   });
 
   it("passes planning work mode to the issue chat thread", async () => {

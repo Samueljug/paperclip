@@ -166,6 +166,24 @@ import {
   type IssueTreeControlMode,
 } from "@paperclipai/shared";
 
+type StopAndFinalizeRunError = Error & {
+  runCancelledBeforeStatusUpdateFailed?: boolean;
+};
+
+function createRunCancelledStatusUpdateError(err: unknown): StopAndFinalizeRunError {
+  const message = err instanceof Error
+    ? `Run was stopped, but updating the task failed: ${err.message}`
+    : "Run was stopped, but updating the task failed. Retry the task status update.";
+  const error = new Error(message) as StopAndFinalizeRunError;
+  error.runCancelledBeforeStatusUpdateFailed = true;
+  return error;
+}
+
+function didRunCancelBeforeStatusUpdateFail(err: unknown): err is StopAndFinalizeRunError {
+  return err instanceof Error &&
+    (err as StopAndFinalizeRunError).runCancelledBeforeStatusUpdateFailed === true;
+}
+
 type CommentReassignment = IssueCommentReassignment;
 type ActionableIssueThreadInteraction =
   | SuggestTasksInteraction
@@ -1978,7 +1996,11 @@ export function IssueDetail() {
   const stopAndFinalizeRun = useMutation({
     mutationFn: async ({ runId, status }: { runId: string; status: "cancelled" | "done" }) => {
       await heartbeatsApi.cancel(runId);
-      return issuesApi.update(issueId!, { status });
+      try {
+        return await issuesApi.update(issueId!, { status });
+      } catch (err) {
+        throw createRunCancelledStatusUpdateError(err);
+      }
     },
     onSuccess: ({ comment: _comment, ...nextIssue }, { status }) => {
       const issueRefs = new Set<string>([issueId!, nextIssue.id]);
@@ -1993,15 +2015,18 @@ export function IssueDetail() {
       });
     },
     onError: (err, { status }) => {
+      const runWasStopped = didRunCancelBeforeStatusUpdateFail(err);
       pushToast({
-        title: status === "done" ? "Stop and done failed" : "Stop and cancel failed",
+        title: runWasStopped
+          ? "Run stopped; task update failed"
+          : status === "done" ? "Stop and done failed" : "Stop and cancel failed",
         body: err instanceof Error ? err.message : "Unable to stop the run and update the task",
         tone: "error",
       });
     },
-    onSettled: () => {
+    onSettled: (_data, err) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId!) });
-      invalidateIssueRunState();
+      if (err) invalidateIssueRunState();
       if (selectedCompanyId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(selectedCompanyId) });
       }
@@ -3136,7 +3161,7 @@ export function IssueDetail() {
         stopAndFinalizeRun.variables?.status === "cancelled",
       disabled: stopAndFinalizeRun.isPending,
       onSelect: (runId) =>
-        stopAndFinalizeRun.mutateAsync({ runId, status: "cancelled" }).then(() => undefined),
+        stopAndFinalizeRun.mutateAsync({ runId, status: "cancelled" }).then(() => undefined, () => undefined),
     },
     {
       id: "done",
@@ -3147,7 +3172,7 @@ export function IssueDetail() {
         stopAndFinalizeRun.variables?.status === "done",
       disabled: stopAndFinalizeRun.isPending,
       onSelect: (runId) =>
-        stopAndFinalizeRun.mutateAsync({ runId, status: "done" }).then(() => undefined),
+        stopAndFinalizeRun.mutateAsync({ runId, status: "done" }).then(() => undefined, () => undefined),
     },
   ], [
     stopAndFinalizeRun.isPending,
