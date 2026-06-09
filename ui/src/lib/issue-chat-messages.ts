@@ -46,6 +46,7 @@ export interface IssueChatLinkedRun {
   finishedAt?: Date | string | null;
   hasStoredOutput?: boolean;
   logBytes?: number | null;
+  errorCode?: string | null;
   resultJson?: Record<string, unknown> | null;
 }
 
@@ -596,6 +597,7 @@ function runDurationLabel(run: {
   createdAt: Date | string;
   startedAt: Date | string | null;
   finishedAt?: Date | string | null;
+  errorCode?: string | null;
   resultJson?: Record<string, unknown> | null;
 }) {
   const start = run.startedAt ?? run.createdAt;
@@ -612,7 +614,7 @@ function runDurationLabel(run: {
     case "timed_out":
       return durationText ? `Timed out after ${durationText}` : "Run timed out";
     case "cancelled":
-      if (isOperatorInterruptedRun(run.resultJson)) {
+      if (isOperatorInterruptedRun(run.resultJson, run.errorCode)) {
         return durationText ? `Interrupted by board after ${durationText}` : "Interrupted by board";
       }
       if (stopReason === "paused") {
@@ -643,7 +645,7 @@ function createHistoricalRunMessage(run: IssueChatLinkedRun, agentMap?: Map<stri
         runAgentId: run.agentId,
         runAgentName: agentName,
         runStatus: run.status,
-        runOperatorInterrupted: isOperatorInterruptedRun(run.resultJson),
+        runOperatorInterrupted: isOperatorInterruptedRun(run.resultJson, run.errorCode),
       },
     },
   };
@@ -680,7 +682,7 @@ function createHistoricalTranscriptMessage(args: {
       runAgentId: run.agentId,
       runAgentName: agentName,
       runStatus: run.status,
-      runOperatorInterrupted: isOperatorInterruptedRun(run.resultJson),
+      runOperatorInterrupted: isOperatorInterruptedRun(run.resultJson, run.errorCode),
       notices,
       waitingText,
       chainOfThoughtLabel: runDurationLabel(run),
