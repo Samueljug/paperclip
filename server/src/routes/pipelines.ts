@@ -732,19 +732,22 @@ export function pipelineRoutes(db: Db, options: Parameters<typeof pipelineServic
       .then((rows) => rows[0] ?? null);
     if (!targetIssue || targetIssue.companyId !== companyId) throw notFound("Issue not found");
     try {
-      const [link] = await db.insert(pipelineCaseIssueLinks).values({
-        companyId,
-        caseId,
-        issueId: req.body.issueId,
-        role: req.body.role,
-        createdByRunId: actor.type === "agent" ? actor.runId : null,
-      }).returning();
-      await writeRouteEvent(db, {
-        companyId,
-        caseId,
-        type: "issue_linked",
-        actor,
-        payload: { issueId: req.body.issueId, role: req.body.role },
+      const link = await db.transaction(async (tx) => {
+        const [created] = await tx.insert(pipelineCaseIssueLinks).values({
+          companyId,
+          caseId,
+          issueId: req.body.issueId,
+          role: req.body.role,
+          createdByRunId: actor.type === "agent" ? actor.runId : null,
+        }).returning();
+        await writeRouteEvent(tx, {
+          companyId,
+          caseId,
+          type: "issue_linked",
+          actor,
+          payload: { issueId: req.body.issueId, role: req.body.role },
+        });
+        return created!;
       });
       res.status(201).json(link);
     } catch (error) {
@@ -756,15 +759,26 @@ export function pipelineRoutes(db: Db, options: Parameters<typeof pipelineServic
     const caseId = req.params.caseId as string;
     const linkId = req.params.linkId as string;
     const companyId = await assertCaseAccess(db, req, caseId);
-    actorForMutation(req);
-    const [deleted] = await db
-      .delete(pipelineCaseIssueLinks)
-      .where(and(
-        eq(pipelineCaseIssueLinks.id, linkId),
-        eq(pipelineCaseIssueLinks.companyId, companyId),
-        eq(pipelineCaseIssueLinks.caseId, caseId),
-      ))
-      .returning();
+    const actor = actorForMutation(req);
+    const deleted = await db.transaction(async (tx) => {
+      const [removed] = await tx
+        .delete(pipelineCaseIssueLinks)
+        .where(and(
+          eq(pipelineCaseIssueLinks.id, linkId),
+          eq(pipelineCaseIssueLinks.companyId, companyId),
+          eq(pipelineCaseIssueLinks.caseId, caseId),
+        ))
+        .returning();
+      if (!removed) return null;
+      await writeRouteEvent(tx, {
+        companyId,
+        caseId,
+        type: "issue_unlinked",
+        actor,
+        payload: { issueId: removed.issueId, role: removed.role, linkId: removed.id },
+      });
+      return removed;
+    });
     if (!deleted) throw notFound("Pipeline case issue link not found");
     res.json({ deleted: true });
   });

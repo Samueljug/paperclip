@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -233,6 +234,54 @@ describeEmbeddedPostgres("pipeline routes", () => {
     await http.post(`/api/cases/${blocked.body.case.id}/automations/retry-me/retry`).expect(200);
 
     await http.delete(`/api/pipelines/${pipelineId}/stages/${stageId}?moveCasesToStageId=${qaStage.body.id}`).expect(200);
+  });
+
+  it("writes an audit event when an agent removes a case issue link", async () => {
+    const company = await seedCompany();
+    const [agent] = await db.insert(agents).values({
+      companyId: company.id,
+      name: "Pipeline Agent",
+      role: "engineer",
+      adapterType: "codex_local",
+    }).returning();
+    const runId = randomUUID();
+    const agentActor: Express.Request["actor"] = {
+      type: "agent",
+      agentId: agent!.id,
+      companyId: company.id,
+      runId,
+      source: "agent_key",
+    };
+    const http = request(app(agentActor));
+    const pipeline = await http.post(`/api/companies/${company.id}/pipelines`).send({ key: "unlink", name: "Unlink audit" }).expect(201);
+    const created = await http
+      .post(`/api/pipelines/${pipeline.body.id}/cases`)
+      .send({ caseKey: "unlink", title: "Unlink audit" })
+      .expect(201);
+    const [issue] = await db.insert(issues).values({
+      companyId: company.id,
+      title: "Linked work",
+      status: "todo",
+      priority: "medium",
+    }).returning();
+
+    const link = await http
+      .post(`/api/cases/${created.body.case.id}/issue-links`)
+      .send({ issueId: issue!.id, role: "work" })
+      .expect(201);
+    await http.delete(`/api/cases/${created.body.case.id}/issue-links/${link.body.id}`).expect(200);
+
+    const events = await http.get(`/api/cases/${created.body.case.id}/events`).expect(200);
+    const linkEvents = events.body.items.filter((event: { type: string }) => event.type === "issue_linked" || event.type === "issue_unlinked");
+    expect(linkEvents.map((event: { type: string }) => event.type)).toEqual(["issue_linked", "issue_unlinked"]);
+    expect(linkEvents[1]).toMatchObject({
+      actorType: "agent",
+      actorAgentId: agent!.id,
+      runId,
+      payload: { issueId: issue!.id, role: "work", linkId: link.body.id },
+    });
+    const remainingLinks = await db.select().from(pipelineCaseIssueLinks).where(eq(pipelineCaseIssueLinks.id, link.body.id));
+    expect(remainingLinks).toHaveLength(0);
   });
 
   it("paginates and caps case event responses", async () => {
