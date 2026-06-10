@@ -929,8 +929,11 @@ export function BoardChat() {
           )}
 
           {/* Input — shared ChatComposer (PAP-95a), adopted bare: textarea + send.
-               No mode chip (the room has no task lifecycle). Sends on plain Enter
-               today; flipping to ⌘/Ctrl+Enter is pending board confirmation. */}
+               No mode chip (the room has no task lifecycle). Multiline like task
+               comments (PAP-116): text soft-wraps and the box auto-grows instead of
+               clipping / showing a horizontal scrollbar. Sends on plain Enter today
+               (Shift+Enter for a newline); flipping to ⌘/Ctrl+Enter is pending board
+               confirmation. */}
           <div className="shrink-0 px-6 pt-3 pb-5">
             <ChatComposer
               ref={composerRef}
@@ -938,7 +941,6 @@ export function BoardChat() {
               onChange={setInput}
               onSubmit={handleSend}
               placeholder="Ask anything about your company..."
-              singleLine
               submitKey="enter"
               submitting={sending}
               disabled={sending}

@@ -150,6 +150,34 @@ describe("ChatComposer", () => {
     act(() => root.unmount());
   });
 
+  it("default (multiline) mode soft-wraps and auto-grows instead of clipping (PAP-116)", () => {
+    // The conference room composer adopts this default mode. Text must wrap and
+    // the box grow up to a cap — never clip horizontally or show an idle scrollbar.
+    const root = createRoot(container);
+    act(() => {
+      root.render(<Harness />);
+    });
+    const el = input();
+    expect(el.getAttribute("wrap")).toBe("soft");
+    expect(el.className).toContain("overflow-y-auto");
+    expect(el.className).toContain("max-h-[200px]");
+    expect(el.className).not.toContain("whitespace-nowrap");
+    expect(el.className).not.toContain("overflow-x-auto");
+    act(() => root.unmount());
+  });
+
+  it("singleLine mode clips to one row (opt-in only)", () => {
+    const root = createRoot(container);
+    act(() => {
+      root.render(<Harness singleLine />);
+    });
+    const el = input();
+    expect(el.getAttribute("wrap")).toBe("off");
+    expect(el.className).toContain("whitespace-nowrap");
+    expect(el.className).toContain("max-h-[22px]");
+    act(() => root.unmount());
+  });
+
   it('tone="planning" is reflected on the container', () => {
     const root = createRoot(container);
     act(() => {
