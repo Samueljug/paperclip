@@ -10636,31 +10636,36 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         }
       : options.resultJson;
 
+    const running = runningProcesses.get(run.id);
+    try {
+      if (running) {
+        await terminateHeartbeatRunProcess({
+          pid: running.child.pid ?? run.processPid,
+          processGroupId: running.processGroupId ?? run.processGroupId,
+          graceMs: Math.max(1, running.graceSec) * 1000,
+        });
+      } else if (run.processPid || run.processGroupId) {
+        await terminateHeartbeatRunProcess({
+          pid: run.processPid,
+          processGroupId: run.processGroupId,
+        });
+      }
+    } finally {
+      runningProcesses.delete(run.id);
+    }
+
+    const finishedAt = new Date();
     const cancelled = await setRunStatus(run.id, "cancelled", {
-      finishedAt: new Date(),
+      finishedAt,
       error: reason,
       errorCode,
       ...(resultJson ? { resultJson } : {}),
     });
 
     await setWakeupStatus(run.wakeupRequestId, "cancelled", {
-      finishedAt: new Date(),
+      finishedAt,
       error: reason,
     });
-
-    const running = runningProcesses.get(run.id);
-    if (running) {
-      await terminateHeartbeatRunProcess({
-        pid: running.child.pid ?? run.processPid,
-        processGroupId: running.processGroupId ?? run.processGroupId,
-        graceMs: Math.max(1, running.graceSec) * 1000,
-      });
-    } else if (run.processPid || run.processGroupId) {
-      await terminateHeartbeatRunProcess({
-        pid: run.processPid,
-        processGroupId: run.processGroupId,
-      });
-    }
 
     if (cancelled) {
       await appendRunEvent(cancelled, 1, {
@@ -10673,7 +10678,6 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       await releaseIssueExecutionAndPromote(cancelled);
     }
 
-    runningProcesses.delete(run.id);
     await finalizeAgentStatus(run.agentId, "cancelled");
     await startNextQueuedRunForAgent(run.agentId);
     return cancelled;
