@@ -57,6 +57,7 @@ import { EmptyState } from "../components/EmptyState";
 import { IssueChatThread } from "../components/IssueChatThread";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { PipelineHealthBar } from "../components/PipelineHealthWarnings";
+import { PipelineWorkReferences } from "../components/PipelineWorkReferences";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useCompany } from "../context/CompanyContext";
 import { useToastActions } from "../context/ToastContext";
@@ -68,6 +69,7 @@ import {
   changedNoticeFromEvents,
   itemHasChangedNotice,
 } from "../lib/pipeline-item-detail";
+import { extractWorkReferences, referenceFieldKeys } from "../lib/pipeline-references";
 import { hasBlockingShortcutDialog, isKeyboardShortcutTextInputTarget } from "../lib/keyboardShortcuts";
 import { formatLearningEvent, groupLearningEventsByDay } from "../lib/pipeline-learnings";
 import { queryKeys } from "../lib/queryKeys";
@@ -1602,7 +1604,9 @@ export function PipelineItemDetailView({ pipelineId, caseId }: { pipelineId: str
     return <div className="mx-auto max-w-3xl py-10 text-sm text-muted-foreground">Item not found.</div>;
   }
 
-  const itemFields = displayPipelineItemFields(detail.case.fields);
+  const workReferences = extractWorkReferences(detail.case);
+  const referenceKeys = referenceFieldKeys(detail.case.fields);
+  const itemFields = displayPipelineItemFields(detail.case.fields).filter((field) => !referenceKeys.has(field.key));
   const banner = getPendingTransitionBannerState(detail.case, stageLookup);
   const statusLabel = humanizePipelineItemStatus(detail.case.terminalKind ?? detail.stage.kind);
   const childRows = children.data ?? [];
@@ -1755,6 +1759,10 @@ export function PipelineItemDetailView({ pipelineId, caseId }: { pipelineId: str
         </main>
 
         <aside className="space-y-8">
+          <DetailSection title="Linked work">
+            <PipelineWorkReferences references={workReferences} />
+          </DetailSection>
+
           <DetailSection title="Details">
             {itemFields.length > 0 ? (
               <dl className="divide-y divide-border">
