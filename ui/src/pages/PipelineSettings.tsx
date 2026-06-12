@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { groupWarningsByStage, syncRoutineVariablesWithTemplate, type RoutineVariable } from "@paperclipai/shared";
+import {
+  groupWarningsByStage,
+  isPipelineTerminalStageKind,
+  syncRoutineVariablesWithTemplate,
+  type RoutineVariable,
+} from "@paperclipai/shared";
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -1010,6 +1015,7 @@ export function PipelineSettings() {
               <div className="flex min-w-max items-center gap-2">
                 {stages.map((stage, index) => {
                   const warningCount = healthWarningsByStage[stage.id]?.length ?? 0;
+                  const canInsertAfter = !isPipelineTerminalStageKind(stage.kind);
                   return (
                     <div key={stage.id} className="flex items-center gap-2">
                       <button
@@ -1044,15 +1050,17 @@ export function PipelineSettings() {
                           </span>
                         ) : null}
                       </button>
-                      <button
-                        type="button"
-                        aria-label={`Insert stage after ${stage.name}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:border-foreground hover:text-foreground"
-                        onClick={() => addStage.mutate(stage)}
-                        disabled={addStage.isPending}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
+                      {canInsertAfter ? (
+                        <button
+                          type="button"
+                          aria-label={`Insert stage after ${stage.name}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:border-foreground hover:text-foreground"
+                          onClick={() => addStage.mutate(stage)}
+                          disabled={addStage.isPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      ) : null}
                       {index === stages.length - 1 ? null : (
                         <span className="h-px w-8 bg-border" aria-hidden="true" />
                       )}

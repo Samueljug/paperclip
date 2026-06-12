@@ -102,6 +102,10 @@ type StageConfig = {
   [key: string]: unknown;
 };
 
+export function isPipelineTerminalStageKind(kind: string | null | undefined): boolean {
+  return kind === "done" || kind === "cancelled";
+}
+
 function asConfig(config: PipelineHealthStageInput["config"]): StageConfig {
   if (!config || typeof config !== "object" || Array.isArray(config)) return {};
   return config as StageConfig;
@@ -164,6 +168,7 @@ export function computePipelineHealth(input: PipelineHealthInput): PipelineHealt
 
     const assigneeAgentId = automationAssigneeAgentId(config);
     const hasStageAutomation = hasRunnableStageAutomation(config);
+    const isTerminalStage = isPipelineTerminalStageKind(stage.kind);
 
     // 1. A teammate is assigned to run this step, but they're paused / gone.
     if (assigneeAgentId) {
@@ -193,7 +198,7 @@ export function computePipelineHealth(input: PipelineHealthInput): PipelineHealt
     }
 
     // 3. Instructions exist, but no teammate is assigned to run them.
-    if (!assigneeAgentId && instructionsBody && stage.kind !== "review") {
+    if (!assigneeAgentId && instructionsBody && stage.kind !== "review" && !isTerminalStage) {
       warnings.push({
         ...anchor,
         code: "automation_no_agent",
@@ -202,7 +207,7 @@ export function computePipelineHealth(input: PipelineHealthInput): PipelineHealt
     }
 
     // 4. Nothing runs here automatically. This is legal, but must be loud.
-    if (!assigneeAgentId && !instructionsBody && !hasStageAutomation && stage.kind !== "review") {
+    if (!assigneeAgentId && !instructionsBody && !hasStageAutomation && stage.kind !== "review" && !isTerminalStage) {
       warnings.push({
         ...anchor,
         code: "stage_no_automation",

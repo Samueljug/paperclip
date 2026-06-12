@@ -103,6 +103,31 @@ describe("computePipelineHealth", () => {
     expect(report.warnings.map((warning) => warning.code)).not.toContain("stage_no_automation");
   });
 
+  it("does not warn about missing automation on terminal stages", () => {
+    const report = computePipelineHealth(
+      baseInput([
+        stage({
+          id: "done-stage",
+          key: "covered",
+          name: "Covered",
+          kind: "done",
+          config: {},
+          instructionsBody: "No runner needed.",
+        }),
+        stage({
+          id: "cancelled-stage",
+          key: "cancelled",
+          name: "Cancelled",
+          kind: "cancelled",
+          config: {},
+          instructionsBody: "",
+        }),
+      ]),
+    );
+    expect(report.warnings.map((warning) => warning.code)).not.toContain("automation_no_agent");
+    expect(report.warnings.map((warning) => warning.code)).not.toContain("stage_no_automation");
+  });
+
   it("warns when a review stage has no approver set", () => {
     const report = computePipelineHealth(
       baseInput([

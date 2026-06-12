@@ -420,6 +420,44 @@ describe("PipelineSettings", () => {
     queryClient.clear();
   });
 
+  it("does not render insert-stage controls after terminal stages", async () => {
+    const terminalPipeline = makePipeline();
+    terminalPipeline.stages = [
+      ...terminalPipeline.stages,
+      {
+        id: "stage-3",
+        pipelineId: "pipeline-1",
+        key: "covered",
+        name: "Covered",
+        kind: "done",
+        position: 300,
+        config: { variables: [] },
+      },
+      {
+        id: "stage-4",
+        pipelineId: "pipeline-1",
+        key: "cancelled",
+        name: "Cancelled",
+        kind: "cancelled",
+        position: 400,
+        config: { variables: [] },
+      },
+    ];
+    (pipelinesApi.get as unknown as { mockResolvedValueOnce: (value: unknown) => void }).mockResolvedValueOnce(terminalPipeline);
+
+    const { container, root, queryClient } = renderSettings();
+    await flushQueries();
+
+    expect(container.querySelector('button[aria-label="Insert stage after Intake"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Insert stage after Covered"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Insert stage after Cancelled"]')).toBeNull();
+
+    flushSync(() => {
+      root.unmount();
+    });
+    queryClient.clear();
+  });
+
   it("syncs variables from escaped {{snake_case}} tokens and saves body + variables in one action", async () => {
     const { container, root, queryClient } = renderSettings();
     await flushQueries();
