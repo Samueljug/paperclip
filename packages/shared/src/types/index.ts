@@ -489,6 +489,12 @@ export type {
 } from "./access.js";
 export type { QuotaWindow, ProviderQuotaResult } from "./quota.js";
 export type {
+  OAuthAccountUsageReport,
+  OAuthAccountUsageResponse,
+  OAuthAccountUsabilityStatus,
+  OAuthLocalUsageSummary,
+} from "./oauth-account-usage.js";
+export type {
   CompanyPortabilityInclude,
   CompanyPortabilityEnvInput,
   CompanyPortabilityFileEntry,
