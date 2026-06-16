@@ -805,9 +805,9 @@ describe("Done transition guard", () => {
 
     const res = await request(app)
       .patch("/api/issues/11111111-1111-4111-8111-111111111111")
-      .send({ title: "New Spoofed Title" });
+      .send({ title: "QA: New Spoofed Title" });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("Agents are not authorized to mutate the following issue fields");
+    expect(res.body.error).toContain("Agents are not authorized to set QA/finding/evidence keywords");
   });
 });

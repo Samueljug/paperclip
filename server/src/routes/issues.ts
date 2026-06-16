@@ -5035,11 +5035,24 @@ export function issueRoutes(
     assertNoAgentHostWorkspaceCommandMutation(req, collectIssueWorkspaceCommandPaths(req.body));
     if (!(await assertAgentIssueMutationAllowed(req, res, existing))) return;
     if (req.actor.type === "agent") {
-      const forbiddenFields = ["title", "description", "labelIds", "projectId", "goalId", "parentId"];
+      const forbiddenFields = ["projectId", "goalId", "parentId", "labelIds"];
       const attemptedFields = forbiddenFields.filter((field) => req.body[field] !== undefined);
       if (attemptedFields.length > 0) {
         res.status(403).json({
           error: `Agents are not authorized to mutate the following issue fields: ${attemptedFields.join(", ")}`,
+        });
+        return;
+      }
+      const bypassKeywords = /qa\b|audit|report-only|finding|evidence/i;
+      if (req.body.title && bypassKeywords.test(req.body.title)) {
+        res.status(403).json({
+          error: "Agents are not authorized to set QA/finding/evidence keywords in the issue title",
+        });
+        return;
+      }
+      if (req.body.description && bypassKeywords.test(req.body.description)) {
+        res.status(403).json({
+          error: "Agents are not authorized to set QA/finding/evidence keywords in the issue description",
         });
         return;
       }
