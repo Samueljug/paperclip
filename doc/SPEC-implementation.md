@@ -487,6 +487,33 @@ V1 non-terminal liveness rule:
 
 Detailed ownership, execution, blocker, active-run watchdog, crash-recovery, and non-terminal liveness semantics are documented in `doc/execution-semantics.md`.
 
+### 8.2.1 Done Transition Guard (Dark Factory Projects)
+
+To prevent code-changing or remediation issues from being completed without proper verification and pull requests, projects identified as "Dark Factory" projects (e.g., project ID `c4525f28-55d1-4378-864c-aec26d51fc37` or projects whose name contains "dark factory") enforce a strict Done Transition Guard when an issue's status is updated to `done`.
+
+#### Validation Rules
+For any issue in a Dark Factory project:
+1. **Pull Request Required**: A linked implementation PR (either via comment containing a pull request URL or as a linked work product) is mandatory for all code-changing or remediation tasks.
+2. **PR Merged Status**: The linked PR must be successfully merged in GitHub (verified via `gh pr view`).
+3. **No Mistakes Gate Pass**: The merged PR's head commit must have a verified "No Mistakes" gate pass. This can be met by either:
+   - A `PASS` verdict in the `run-manifest.json` under `gates.no_mistakes` (path-resolved relative to the latest run directory) matching the PR's head commit SHA.
+   - A human-authored issue comment containing `no mistakes pass`, `no_mistakes_pass`, or `gate_result:no_mistakes` with `PASS` along with the matching head SHA.
+
+#### Exceptions and Bypasses
+The PR and No Mistakes requirements are bypassed in the following scenarios:
+1. **Approved Waiver**: A comment by a human user containing `approved waiver` or `waiver approved`.
+2. **QA or Report-Only Container**: Tasks that are purely for QA or reporting and do not involve code changes are identified by:
+   - Having the `evidence-record` or `finding-record` label.
+   - An issue title or description matching QA/audit/report-only keywords (e.g., `qa`, `audit`, `report-only`) AND not matching remediation keywords (e.g., `fix`, `remediat`, `resolve`, `patch`, etc.).
+   - A human-authored comment explicitly stating bypass keywords (e.g., `not new implementation`, `evidence record`, etc.).
+   - Note: Issues containing active plans (`plan` document), Foreman runs, or agent comments indicating a fix is complete are treated as completed fixes and **cannot** bypass the Done Guard as QA containers.
+
+#### Agent Restrictions
+To ensure the integrity of the Done Guard:
+- Agents are not authorized to mutate critical issue fields such as `projectId`, `goalId`, `parentId`, or `labelIds`.
+- Agents are blocked from setting QA/finding/evidence keywords (e.g., `qa`, `audit`, `finding`, `evidence`, etc.) in the issue title or description to prevent self-bypassing the Done Guard.
+- Agent comments are excluded from being treated as waivers or gate fallbacks.
+
 ## 8.3 Approval Status
 
 - `pending -> approved | rejected | cancelled`
