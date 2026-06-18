@@ -1769,8 +1769,23 @@ export function issueRoutes(
 
     const isCompletedFix = (hasPlan || hasForemanRun || hasAgentFixComment) && !isExplicitEvidenceRecord;
 
+    const hasManagerDispositionComment = comments.some((c: any) =>
+      c.authorType === "user" &&
+      /\b(disposition|dispositioned|approved|false positive|resolved|done|closed|dismissed|reassigned|no action|reviewed|verdict)\b/i.test(c.body || "")
+    );
+
+    const reviewOrRecoveryOriginKinds = new Set([
+      "issue_productivity_review",
+      "harness_liveness_escalation",
+      "stranded_issue_recovery",
+      "stale_active_run_evaluation",
+    ]);
+    const isReviewOrRecoveryTask = !!(existing.originKind && reviewOrRecoveryOriginKinds.has(existing.originKind));
+
     let isQaOrReportOnly = false;
-    if (!isCompletedFix) {
+    if (isReviewOrRecoveryTask && hasManagerDispositionComment) {
+      isQaOrReportOnly = true;
+    } else if (!isCompletedFix) {
       if (isExplicitEvidenceRecord) {
         isQaOrReportOnly = true;
       } else if (isFindingCard) {
