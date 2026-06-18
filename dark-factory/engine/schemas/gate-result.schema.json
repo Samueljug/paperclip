@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.local/dark-factory/gate-result.schema.json",
+  "title": "Dark Factory GateResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "gate", "verdict", "summary", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "gate": { "type": "string" },
+    "verdict": { "type": "string", "enum": ["PASS", "FAIL", "PARTIAL", "BLOCKED"] },
+    "summary": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "details": {},
+    "artifacts": { "type": "array", "items": { "type": "object" } }
+  }
+}

@@ -1,0 +1,1 @@
+*/30 * * * * /bin/zsh -lc 'cd /Users/samuelimini/.openclaw/workspace-telegram4 && /opt/homebrew/Cellar/node/26.0.0/bin/node /Users/samuelimini/.openclaw/workspace-telegram4/bin/dark-factory-improver-monitor.mjs >> /Users/samuelimini/.openclaw/workspace-telegram4/logs/dark-factory-improver-monitor.log 2>&1'

@@ -1,0 +1,105 @@
+{
+  "_README": "Worker templates for Paperclip. Each entry becomes a selectable agent whose every call goes through the named LLM's CLI (codex_local->codex, claude_local->claude, gemini_local->gemini). EDIT this file to make new templates; COPY a block + change 'key' to duplicate. Then run: node worker-templates.mjs --sync. Fields: key(unique), llm(codex|claude|gemini), model, reasoning(codex: minimal|low|medium|high|xhigh; claude: low|medium|high; gemini: ignored), fastMode(codex only, optional), label(shown on board), note.",
+  "defaults": {
+    "workspace": "/Users/samuelimini/.openclaw/workspace",
+    "heartbeatEnabled": false
+  },
+  "templates": [
+    {
+      "key": "codex-spark-high",
+      "llm": "codex",
+      "model": "gpt-5.3-codex-spark",
+      "reasoning": "high",
+      "label": "Codex Spark (cheap) \u00b7 high",
+      "note": "Lowest-cost Codex lane, high reasoning. Good default delegated worker."
+    },
+    {
+      "key": "codex-54-medium",
+      "llm": "codex",
+      "model": "gpt-5.4",
+      "reasoning": "medium",
+      "label": "Codex gpt-5.4 \u00b7 medium",
+      "note": "Balanced Codex."
+    },
+    {
+      "key": "codex-54-high",
+      "llm": "codex",
+      "model": "gpt-5.4",
+      "reasoning": "high",
+      "label": "Codex gpt-5.4 \u00b7 high",
+      "note": "Strong Codex coding worker."
+    },
+    {
+      "key": "codex-54-xhigh",
+      "llm": "codex",
+      "model": "gpt-5.4",
+      "reasoning": "xhigh",
+      "label": "Codex gpt-5.4 \u00b7 xhigh",
+      "note": "Deepest Codex reasoning for hard problems."
+    },
+    {
+      "key": "claude-haiku-low",
+      "llm": "claude",
+      "model": "claude-haiku-4-5-20251001",
+      "reasoning": "low",
+      "label": "Claude Haiku 4.5 \u00b7 low",
+      "note": "Fast/cheap Claude worker."
+    },
+    {
+      "key": "claude-sonnet-med",
+      "llm": "claude",
+      "model": "claude-sonnet-4-6",
+      "reasoning": "medium",
+      "label": "Claude Sonnet 4.6 \u00b7 medium",
+      "note": "Balanced Claude worker."
+    },
+    {
+      "key": "claude-sonnet-high",
+      "llm": "claude",
+      "model": "claude-sonnet-4-6",
+      "reasoning": "high",
+      "label": "Claude Sonnet 4.6 \u00b7 high",
+      "note": "Strong Claude worker."
+    },
+    {
+      "key": "claude-opus-high",
+      "llm": "claude",
+      "model": "claude-opus-4-8",
+      "reasoning": "high",
+      "label": "Claude Opus 4.8 \u00b7 high",
+      "note": "Deepest Claude reasoning."
+    },
+    {
+      "key": "gemini-flash",
+      "llm": "gemini",
+      "model": "gemini-2.5-flash",
+      "reasoning": "auto",
+      "label": "Gemini 2.5 Flash",
+      "note": "Fast Gemini worker."
+    },
+    {
+      "key": "gemini-pro",
+      "llm": "gemini",
+      "model": "gemini-2.5-pro",
+      "reasoning": "auto",
+      "label": "Gemini 2.5 Pro",
+      "note": "Deep Gemini worker."
+    },
+    {
+      "key": "gemini-flash-lite",
+      "llm": "gemini",
+      "model": "gemini-2.5-flash-lite",
+      "reasoning": "auto",
+      "label": "Gemini 2.5 Flash-Lite (fastest)",
+      "note": ""
+    },
+    {
+      "key": "codex-55-high",
+      "llm": "codex",
+      "model": "gpt-5.5",
+      "reasoning": "high",
+      "label": "Codex gpt-5.5 \u00b7 high",
+      "note": "Strong Codex coding worker."
+    }
+  ]
+}

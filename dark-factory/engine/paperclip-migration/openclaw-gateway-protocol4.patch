@@ -1,0 +1,23 @@
+diff --git a/packages/adapters/openclaw-gateway/src/server/execute.ts b/packages/adapters/openclaw-gateway/src/server/execute.ts
+index f019bfa8..5f267f01 100644
+--- a/packages/adapters/openclaw-gateway/src/server/execute.ts
++++ b/packages/adapters/openclaw-gateway/src/server/execute.ts
+@@ -86,7 +86,7 @@ type GatewayClientRequestOptions = {
+   expectFinal?: boolean;
+ };
+ 
+-const PROTOCOL_VERSION = 3;
++const PROTOCOL_VERSION = 4; // 2026-06-13: bumped 3->4 to match live OpenClaw gateway (min=max=4). Pure version-gate; handshake frames unchanged.
+ const DEFAULT_SCOPES = ["operator.admin"];
+ const DEFAULT_CLIENT_ID = "gateway-client";
+ const DEFAULT_CLIENT_MODE = "backend";
+@@ -1139,7 +1139,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
+     idempotencyKey: ctx.runId,
+   };
+   delete agentParams.text;
+-  agentParams.paperclip = paperclipPayload;
++  // 2026-06-13 CONNECTIVITY TEST: v4 OpenClaw gateway removed Paperclip integration + uses strict schema; root paperclip prop is rejected. Omit to test raw WS path.
++  void paperclipPayload;
+ 
+   const configuredAgentId = nonEmpty(ctx.config.agentId);
+   if (configuredAgentId && !nonEmpty(agentParams.agentId)) {

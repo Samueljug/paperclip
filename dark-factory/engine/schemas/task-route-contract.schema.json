@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.local/dark-factory/task-route-contract.schema.json",
+  "title": "Dark Factory TaskRouteContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "source",
+    "decision",
+    "repoUrl",
+    "baseBranch",
+    "difficulty",
+    "mode",
+    "changeType",
+    "prBacked",
+    "browserQa",
+    "userFlow",
+    "userVisible",
+    "requiredLanes",
+    "evidenceRequirements"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "main_app_stage",
+        "legal_dev_app",
+        "website",
+        "core_policy",
+        "ambiguous_stage",
+        "other"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repoUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "baseBranch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string"
+    },
+    "localPath": {
+      "type": "string"
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["D0", "D1", "D2", "D3", "D4", "D5"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["mode0", "mode1", "mode2", "mode3", "mode4"]
+    },
+    "changeType": {
+      "type": "string",
+      "enum": ["code", "api", "ui", "fullstack", "test", "docs", "config", "process"]
+    },
+    "prBacked": {
+      "type": "boolean"
+    },
+    "browserQa": {
+      "type": "boolean"
+    },
+    "userFlow": {
+      "type": "boolean"
+    },
+    "userVisible": {
+      "type": "boolean"
+    },
+    "requiredLanes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["planning", "research", "implementation", "verification", "browser_qa", "security", "no_mistakes", "pr", "self_improvement", "foreman"]
+      }
+    },
+    "evidenceRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

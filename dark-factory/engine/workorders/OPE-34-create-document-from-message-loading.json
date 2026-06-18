@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "workOrderId": "OPE-34-create-document-from-message-loading",
+  "issue": "OPE-34",
+  "title": "Fix create document from message loading lock",
+  "brief": "Samuel provided video evidence from the Stage editor showing the Create document from message action in the Amelia/AI Compass side panel. After the action is clicked, the app switches to a hard full-screen loading spinner and does not complete normally in the recording. Fix the Stage frontend so this action successfully creates/opens the document or returns a visible recoverable error without breaking the editor session.",
+  "repo": {
+    "name": "quillio-frontend",
+    "url": "https://github.com/aila-quillio/quillio-frontend",
+    "baseBranch": "stage",
+    "workingDir": "/Users/samuelimini/Development/Stage/create new doc broken/frontend",
+    "branch": "dark-factory/OPE-34-create-document-from-message-loading"
+  },
+  "changeType": "ui",
+  "allowedWriteScope": [
+    "app/layouts/editor/**",
+    "app/components/**",
+    "app/composables/**",
+    "app/services/**",
+    "app/utils/**",
+    "app/types/**",
+    "tests/**",
+    "__tests__/**",
+    "test/**"
+  ],
+  "acceptanceContract": {
+    "frozen": true,
+    "intentConfirmation": {
+      "required": false,
+      "status": "explicit_user_instruction"
+    },
+    "criteria": [
+      {
+        "id": "AC1",
+        "statement": "Clicking Create document from message no longer leaves the editor on a full-screen loading state.",
+        "verification": "A regression test or browser QA path exercises the create-document-from-message action and confirms loading is cleared on success or failure.",
+        "holdout": false
+      },
+      {
+        "id": "AC2",
+        "statement": "The user either lands on the created document or sees a visible recoverable error while staying in a usable editor session.",
+        "verification": "Implementation evidence shows success and error paths both clear pending state and do not trigger an indefinite page loader.",
+        "holdout": false
+      },
+      {
+        "id": "AC3",
+        "statement": "The fix is scoped to the authorized create-document/message action path and does not change unrelated editor or document workflows.",
+        "verification": "Git diff and independent review verify changes remain inside the allowed write scope.",
+        "holdout": false
+      },
+      {
+        "id": "AC4",
+        "statement": "The repo's practical local quality checks pass, or any local environment gap is recorded.",
+        "verification": "Attach test/build/lint evidence or a documented local exception.",
+        "holdout": false
+      }
+    ]
+  },
+  "coordination": {
+    "agentEndpoints": [
+      "codex-builder",
+      "browser-qa",
+      "security-review",
+      "claude-judge"
+    ],
+    "messageTopology": "Foreman-mediated handoff; Paperclip comments, run manifest, ledger events, and evidence files are the source of truth.",
+    "authorityDistribution": "Foreman owns stage advancement, evidence checks, gate recording, No Mistakes, push, and PR commands.",
+    "syncMode": "bounded async review with typed verdict files",
+    "aggregation": "typed PASS/FAIL/PARTIAL/BLOCKED verdicts with evidence refs",
+    "termination": "stop on PASS, budget exhaustion, or BLOCKED escalation",
+    "failureHandling": "retry inside loop budget, then escalate without pretending success",
+    "informationPolicy": "builder sees the frozen contract and video reproduction evidence; independent reviewers verify the diff and gate claims.",
+    "computeAccounting": "record model/tool usage estimates as evidence, not billing truth"
+  },
+  "gates": {
+    "tests": true,
+    "securityReview": true,
+    "browserQa": true,
+    "noMistakes": true,
+    "evidence": true,
+    "pr": true
+  },
+  "loop": {
+    "maxIterations": 3,
+    "timeBudgetMinutes": 120,
+    "judge": "Claude Opus 4.8 max independent review after Codex build when available; otherwise record unavailable and run local independent review",
+    "escalateOnExhaustion": true
+  },
+  "loops": [
+    {
+      "id": "plan-adversarial-review",
+      "kind": "plan_adversarial_review",
+      "owner": "orchestra, Foreman, and Claude workers",
+      "trigger": "Immediately after the planning team returns a plan and before implementation starts, push back to the planning team exactly once and ask: Is there anything else that has been missed? Are there any errors? Are there any conflicts in the plan?",
+      "maxIterations": 1,
+      "timeBudgetMinutes": 10,
+      "judge": "Foreman verifies the one planning-team challenge was sent once and the response or lack of response was recorded before implementation proceeds.",
+      "memory": "Ticket comments, Foreman loop event, run manifest, and evidence/source of truth for the planning-team response or lack of response.",
+      "evidence": [
+        "plan_adversarial_review"
+      ],
+      "exitCondition": "The one adversarial plan challenge is recorded with the planning team response or lack of response.",
+      "escalation": "If the challenge finds missed work, errors, or conflicts, return to the planning team for correction before implementation proceeds.",
+      "escalateOnExhaustion": true
+    }
+  ],
+  "evidenceRequirements": [
+    "reproduction",
+    "test",
+    "browser_qa",
+    "screenshot",
+    "security_review"
+  ],
+  "taskRoute": {
+    "schemaVersion": 1,
+    "kind": "main_app_stage",
+    "source": "Bundled Dark Factory WorkOrder OPE-34-create-document-from-message-loading",
+    "decision": "This WorkOrder is explicitly routed to the main app stage repository under aila-quillio.",
+    "repoUrl": "https://github.com/aila-quillio/quillio-frontend",
+    "baseBranch": "stage",
+    "branch": "dark-factory/OPE-34-create-document-from-message-loading",
+    "localPath": "/Users/samuelimini/Development/Stage/create new doc broken/frontend",
+    "difficulty": "D3",
+    "mode": "mode2",
+    "changeType": "ui",
+    "prBacked": true,
+    "browserQa": true,
+    "userFlow": true,
+    "userVisible": true,
+    "requiredLanes": [
+      "foreman",
+      "planning",
+      "implementation",
+      "verification",
+      "browser_qa",
+      "security",
+      "no_mistakes",
+      "pr",
+      "self_improvement"
+    ],
+    "evidenceRequirements": [
+      "reproduction",
+      "test",
+      "browser_qa",
+      "screenshot",
+      "security_review"
+    ]
+  }
+}

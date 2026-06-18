@@ -1,0 +1,26 @@
+{
+  "paperclipApi": "http://127.0.0.1:3101/api",
+  "boardUrl": "http://127.0.0.1:3101",
+  "companyId": "replace-with-paperclip-company-id",
+  "projectId": "replace-with-paperclip-project-id",
+  "coordinatorAgentId": "replace-with-paperclip-coordinator-agent-id",
+  "comsUrl": "http://127.0.0.1:52965",
+  "comsProject": "openclaw",
+  "comsToken": "replace-with-local-coms-token",
+  "stateDir": "<FORK>/dark-factory/intake/state",
+  "maxRetries": 3,
+  "lockTtlMs": 180000,
+  "targetInboxSoftLimit": 80,
+  "backpressureCommentCooldownMs": 1800000,
+  "blockedSweepCooldownMs": 1800000,
+  "handoffTargets": [
+    "pi-orchestrator",
+    "planning-lead",
+    "implementation-lead",
+    "research-lead",
+    "verification-lead",
+    "browser-qa-lead",
+    "security-lead",
+    "self-improvement-lead"
+  ]
+}

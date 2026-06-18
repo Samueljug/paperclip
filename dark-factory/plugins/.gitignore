@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.paperclip-sdk/
+pnpm-lock.yaml

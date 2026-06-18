@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "workOrderId": "OPE-18",
+  "issue": "OPE-18",
+  "title": "DF-003: Skip malformed LMS video artifact tags",
+  "brief": "Fix malformed LMS video artifact handling so missing required attributes are reported as ValueError and find_video_artifacts_in_text can skip invalid tags instead of raising KeyError.",
+  "repo": {
+    "name": "backend-legal",
+    "url": "https://github.com/aila-code/backend-legal",
+    "baseBranch": "stage",
+    "workingDir": "/Users/samuelimini/Development/Dev/dark-factory-ticket-003/backend-legal",
+    "branch": "dark-factory/ticket-003-small-bugfix"
+  },
+  "changeType": "code",
+  "allowedWriteScope": [
+    "app/services/lms_artifacts.py",
+    "tests/unit/test_services_lms_artifacts.py"
+  ],
+  "acceptanceContract": {
+    "frozen": true,
+    "intentConfirmation": {
+      "required": false,
+      "status": "not_required"
+    },
+    "criteria": [
+      {
+        "id": "AC1",
+        "statement": "Malformed lmsVideoArtifact tags missing required attributes are skipped by find_video_artifacts_in_text without raising.",
+        "verification": "Focused unit regression test mixes valid tags with a real malformed tag and asserts only valid artifacts are returned.",
+        "holdout": false
+      },
+      {
+        "id": "AC2",
+        "statement": "LMSVideoArtifact.from_markdown reports missing required attributes as ValueError rather than KeyError.",
+        "verification": "Focused unit test asserts missing required fields raise ValueError.",
+        "holdout": false
+      },
+      {
+        "id": "AC3",
+        "statement": "Existing valid artifact parsing behavior remains unchanged.",
+        "verification": "Existing LMS artifact tests pass.",
+        "holdout": false
+      }
+    ]
+  },
+  "coordination": {
+    "agentEndpoints": [
+      "codex-builder",
+      "claude-judge"
+    ],
+    "messageTopology": "Foreman-mediated handoff; OPE-18, run manifest, ledger events, and gate files are the source of truth.",
+    "authorityDistribution": "Foreman owns stage advancement, evidence checks, No Mistakes, push, and PR commands.",
+    "syncMode": "bounded async review with typed verdict files",
+    "aggregation": "typed PASS/FAIL/PARTIAL/BLOCKED verdicts with evidence refs",
+    "termination": "stop on PASS, budget exhaustion, or BLOCKED escalation",
+    "failureHandling": "retry inside loop budget, then escalate without pretending success",
+    "informationPolicy": "builder sees the frozen contract; hidden holdouts stay with the independent judge",
+    "computeAccounting": "record model/tool usage estimates as evidence, not billing truth"
+  },
+  "gates": {
+    "tests": true,
+    "securityReview": true,
+    "browserQa": true,
+    "noMistakes": true,
+    "evidence": true,
+    "pr": true
+  },
+  "loop": {
+    "maxIterations": 3,
+    "timeBudgetMinutes": 60,
+    "judge": "Claude Opus 4.8 max independent review after Codex build",
+    "escalateOnExhaustion": true
+  },
+  "loops": [
+    {
+      "id": "plan-adversarial-review",
+      "kind": "plan_adversarial_review",
+      "owner": "orchestra, Foreman, and Claude workers",
+      "trigger": "Immediately after the planning team returns a plan and before implementation starts, push back to the planning team exactly once and ask: Is there anything else that has been missed? Are there any errors? Are there any conflicts in the plan?",
+      "maxIterations": 1,
+      "timeBudgetMinutes": 10,
+      "judge": "Foreman verifies the one planning-team challenge was sent once and the response or lack of response was recorded before implementation proceeds.",
+      "memory": "Ticket comments, Foreman loop event, run manifest, and evidence/source of truth for the planning-team response or lack of response.",
+      "evidence": [
+        "plan_adversarial_review"
+      ],
+      "exitCondition": "The one adversarial plan challenge is recorded with the planning team response or lack of response.",
+      "escalation": "If the challenge finds missed work, errors, or conflicts, return to the planning team for correction before implementation proceeds.",
+      "escalateOnExhaustion": true
+    }
+  ],
+  "risk": {
+    "tier": "low",
+    "reason": "Small parser robustness fix; no persistence, auth, schema, vendor config, or UI behavior change."
+  },
+  "evidenceRequirements": [
+    "test",
+    "security_review",
+    "browser_smoke",
+    "screenshot"
+  ],
+  "taskRoute": {
+    "schemaVersion": 1,
+    "kind": "legal_dev_app",
+    "source": "Bundled Dark Factory WorkOrder OPE-18",
+    "decision": "This WorkOrder is explicitly routed to the legal/dev app under aila-code, not main app stage.",
+    "repoUrl": "https://github.com/aila-code/backend-legal",
+    "baseBranch": "stage",
+    "branch": "dark-factory/ticket-003-small-bugfix",
+    "localPath": "/Users/samuelimini/Development/Dev/dark-factory-ticket-003/backend-legal",
+    "difficulty": "D2",
+    "mode": "mode2",
+    "changeType": "code",
+    "prBacked": true,
+    "browserQa": true,
+    "userFlow": false,
+    "userVisible": true,
+    "requiredLanes": [
+      "foreman",
+      "planning",
+      "implementation",
+      "verification",
+      "browser_qa",
+      "security",
+      "no_mistakes",
+      "pr",
+      "self_improvement"
+    ],
+    "evidenceRequirements": [
+      "test",
+      "security_review",
+      "browser_smoke",
+      "screenshot"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.local/dark-factory/run-manifest.schema.json",
+  "title": "Dark Factory RunManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "workOrderId",
+    "status",
+    "currentStage",
+    "stages",
+    "paths",
+    "workOrderHash",
+    "gates",
+    "loop"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string" },
+    "workOrderId": { "type": "string" },
+    "issue": { "type": "string" },
+    "status": { "type": "string", "enum": ["active", "blocked", "failed", "ready_to_ship", "shipped", "done"] },
+    "currentStage": { "type": "string" },
+    "stages": { "type": "array", "items": { "type": "object" } },
+    "paths": { "type": "object" },
+    "workOrderHash": { "type": "string" },
+    "testContractHash": { "type": ["string", "null"] },
+    "protectedPaths": { "type": "array", "items": { "type": "string" } },
+    "gates": { "type": "object" },
+    "loop": { "type": "object" },
+    "loops": { "type": "array", "items": { "type": "object" } }
+  }
+}

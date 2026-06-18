@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>CODEX_HOME</key>
+		<string>/Users/samuelimini/.codex</string>
+		<key>OPENCLAW_CLAUDE_BRIDGE_ENABLED</key>
+		<string>1</string>
+		<key>OPENCLAW_GEMINI_BIN</key>
+		<string>/Users/samuelimini/.no-mistakes/bin/gemini-antigravity-wrapper</string>
+		<key>OPENCLAW_GEMINI_BRIDGE_ENABLED</key>
+		<string>0</string>
+		<key>OPENCLAW_GEMINI_BRIDGE_MODEL</key>
+		<string>gemini-3.5-flash</string>
+		<key>OPENCLAW_PI_MODEL_PRESET</key>
+		<string>codex-default</string>
+	</dict>
+	<key>Label</key>
+	<string>com.openclaw.dark-factory-foreman</string>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/Cellar/node/26.0.0/bin/node</string>
+		<string>/Users/samuelimini/.openclaw/workspace-development/tools/factory-intake/factory-watchdog.mjs</string>
+		<string>--blocked-max</string>
+		<string>10</string>
+		<string>--foreman-max</string>
+		<string>10</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/samuelimini/.openclaw/logs/dark-factory-foreman.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/samuelimini/.openclaw/logs/dark-factory-foreman.out.log</string>
+	<key>StartInterval</key>
+	<integer>1800</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/samuelimini/.openclaw/workspace-development</string>
+</dict>
+</plist>
