@@ -260,7 +260,7 @@ describe("Done transition guard", () => {
     mockExistsSync.mockReturnValue(true);
     mockReaddirSync.mockReturnValue(["PAP-580-run"]);
     mockStatSync.mockReturnValue({ mtimeMs: Date.now() });
-    
+
     mockAccess.mockImplementation(async (path: string) => {
       if (mockExistsSync(path)) {
         return;
@@ -548,7 +548,7 @@ describe("Done transition guard", () => {
     mockIssueService.listComments.mockResolvedValue([
       { body: "https://github.com/org/repo/pull/123" }
     ]);
-    
+
     // Mismatch: PR head is abcdef1234567890, but gate head is different
     mockReadFileSync.mockImplementation((path: string) => {
       if (path.includes("run-manifest.json")) {
@@ -741,7 +741,7 @@ describe("Done transition guard", () => {
       { body: "https://github.com/org/repo/pull/123" },
       { body: "abcdef1234567890 no mistakes pass", authorType: "agent" }
     ]);
-    
+
     // Mismatch/absent gate file in run manifest
     mockReadFileSync.mockImplementation((path: string) => {
       if (path.includes("run-manifest.json")) {

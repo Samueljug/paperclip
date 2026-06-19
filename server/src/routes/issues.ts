@@ -1700,7 +1700,7 @@ export function issueRoutes(
           const manifestPaths = files
             .filter((name) => name.startsWith(`${existing.identifier}-`))
             .map((name) => resolve(runsDir, name));
-          
+
           const list = [];
           for (const dir of manifestPaths) {
             const manifestPath = resolve(dir, "run-manifest.json");
@@ -1726,7 +1726,7 @@ export function issueRoutes(
 
     const workProducts = await workProductsSvc.listForIssue(issueId);
     const prProducts = workProducts.filter((wp: any) => wp.type === "pull_request" || wp.url?.includes("/pull/"));
-    
+
     const prCandidates = new Set<string>();
     for (const wp of prProducts) {
       if (wp.url) {
