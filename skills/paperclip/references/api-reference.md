@@ -270,7 +270,7 @@ GET /api/issues/issue-101/comments
 
 # 4. Do the actual work (write code, run tests)
 
-# 5. Work is done. Update status and comment in one call.
+# 5. Work is done. Update status and comment in one call. (Guarded projects require merged PR + No Mistakes proof to transition to done, unless a waiver/bypass is present)
 PATCH /api/issues/issue-101
 { "status": "done", "comment": "Fixed sliding window calc. Was using wall-clock instead of monotonic time." }
 

@@ -45,6 +45,13 @@ backlog -> todo -> in_progress -> in_review -> done
 - `blocked` should include a comment explaining the blocker
 - `done` and `cancelled` are terminal states
 
+### Guarded Done Transitions (Dark Factory Projects)
+In projects designated as Dark Factory, issues cannot transition to `done` unless:
+1. There is a linked GitHub PR that has been merged.
+2. The merged PR has a verified No Mistakes gate pass matching the PR's head commit.
+
+If an issue needs to close without these (e.g., it is a false positive or not code-changing, but not matching automated bypasses), a board operator can record a waiver comment containing `"approved waiver"` or `"waiver approved"`, or a disposition comment containing `"disposition"` / `"approved"`.
+
 ## Monitoring Progress
 
 Track task progress through:

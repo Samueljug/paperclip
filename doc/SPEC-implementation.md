@@ -508,6 +508,7 @@ The PR and No Mistakes requirements are bypassed in the following scenarios:
    - A human-authored comment explicitly stating bypass keywords (e.g., `not new implementation`, `evidence record`, etc.).
    - Note: Issues containing active plans (`plan` document), Foreman runs, or agent comments indicating a fix is complete are treated as completed fixes and **cannot** bypass the Done Guard as QA containers.
 3. **True Review/Recovery Tasks**: Tasks with a review or recovery origin kind (specifically `issue_productivity_review`, `harness_liveness_escalation`, `stranded_issue_recovery`, or `stale_active_run_evaluation`) are bypassed, provided they have a manager (user-authored) disposition comment recorded on the issue.
+4. **Manifest-Driven Bypass**: Tasks where the latest run manifest has `taskRoute.prBacked === false` or `workOrder.gates.pr === false` are bypassed from PR and No Mistakes requirements.
 
 #### Agent Restrictions
 To ensure the integrity of the Done Guard:
