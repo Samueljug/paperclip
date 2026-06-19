@@ -639,6 +639,14 @@ pnpm paperclipai admin user company-access <user-id>
 pnpm paperclipai admin user company-access:update <user-id> --payload-json '{...}'
 ```
 
+CLI auth login facilitates user authentication via browser or headless/browser-suppressed mode:
+
+```sh
+pnpm paperclipai auth login [--no-browser]
+```
+
+When `--no-browser` is specified (or `PAPERCLIP_NO_BROWSER` is set in the environment), the login command suppresses opening a local browser and instead prints the authentication URL directly for manual entry. `PAPERCLIP_PUBLIC_URL` is used to formulate the callback/redirection targets.
+
 CLI auth challenge endpoints are also exposed for tooling that needs the raw challenge lifecycle:
 
 ```sh
