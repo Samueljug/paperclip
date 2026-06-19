@@ -496,7 +496,7 @@ For any issue in a Dark Factory project:
 1. **Pull Request Required**: A linked implementation PR (either via comment containing a pull request URL or as a linked work product) is mandatory for all code-changing or remediation tasks.
 2. **PR Merged Status**: The linked PR must be successfully merged in GitHub (verified via `gh pr view`).
 3. **No Mistakes Gate Pass**: The merged PR's head commit must have a verified "No Mistakes" gate pass. This can be met by either:
-   - A verified `PASS` verdict in the gate file referenced by `gates.no_mistakes.path` in the `run-manifest.json` (path-resolved relative to the latest run directory) matching the PR's head commit SHA.
+   - A verified `PASS` verdict in the gate file referenced by `gates.no_mistakes.path` in the `run-manifest.json` (path-resolved relative to the latest run directory). The referenced gate JSON must contain `verdict: "PASS"` and a matching head SHA under `details.headAfter` or `details.head` matching the PR's head commit SHA.
    - A human-authored issue comment containing `no mistakes pass`, `no_mistakes_pass`, or `gate_result:no_mistakes` with `PASS` along with the matching head SHA.
 
 #### Exceptions and Bypasses

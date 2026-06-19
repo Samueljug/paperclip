@@ -158,7 +158,7 @@ Notes:
 pnpm paperclipai issue list --company-id <company-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
 pnpm paperclipai issue get <issue-id-or-identifier>
 pnpm paperclipai issue create --company-id <company-id> --title "..." [--description "..."] [--status todo] [--priority high]
-pnpm paperclipai issue update <issue-id> [--status in_progress] [--comment "..."]
+pnpm paperclipai issue update <issue-id> [--status in_progress] [--comment "..."] (Note: Transitioning to status 'done' on guarded/Dark Factory projects requires pre-existing linked merged PR and No Mistakes proof or human waiver/disposition)
 pnpm paperclipai issue delete <issue-id> --yes
 pnpm paperclipai issue comment <issue-id> --body "..." [--reopen]
 pnpm paperclipai issue comments <issue-id> [--limit 50]

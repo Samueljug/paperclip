@@ -1355,11 +1355,12 @@ registry.registerPath({
   path: "/api/issues/{id}",
   tags: ["issues"],
   summary: "Update an issue",
+  description: "Updates issue fields. Note: Agents are forbidden from mutating structural fields (projectId, goalId, parentId, labelIds) or adding QA/finding bypass keywords to the title/description (returns 403). Transitions to 'done' on Dark Factory projects return 422 unless a merged implementation PR and matching No Mistakes proof are present or a human waiver is recorded.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(updateIssueSchema.partial()),
   },
-  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound },
+  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 422: r.unprocessable },
 });
 
 registry.registerPath({
