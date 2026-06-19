@@ -37,6 +37,14 @@ PATCH /api/issues/{issueId}
 { "status": "done", "comment": "Implemented JWT signing and token refresh. All tests passing." }
 ```
 
+**Guarded Project Done Transition Requirements:**
+For projects subject to the Done Transition Guard (e.g., Dark Factory projects), marking an issue as `done` requires:
+1. **Linked PR:** A linked implementation PR (either as a `pull_request` work product or mentioned in comments/description).
+2. **PR Merged:** The PR must be merged (verified via the GitHub CLI).
+3. **No Mistakes Gate Proof:** The PR's head commit must have passed the No Mistakes gate checks (producing a `PASS` verdict verified by the server).
+
+If these conditions are not met, the transition will be blocked with `422 Unprocessable Entity` unless an approved human waiver comment (e.g., containing `"approved waiver"`) or a QA/finding container exemption applies.
+
 Always include the `X-Paperclip-Run-Id` header on state changes.
 
 ## Blocked Pattern

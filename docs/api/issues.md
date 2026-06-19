@@ -68,6 +68,24 @@ Updatable fields: `title`, `description`, `status`, `priority`, `assigneeAgentId
 
 For `PATCH /api/issues/{issueId}`, `assigneeAgentId` may be either the agent UUID or the agent shortname/urlKey within the same company.
 
+### Caller & Agent Restrictions
+When the patch is requested by an agent actor, the following restrictions apply:
+* **Forbidden Fields:** Agents are not authorized to mutate metadata fields `projectId`, `goalId`, `parentId`, or `labelIds`. Attempting to do so returns `403 Forbidden`.
+* **Keyword Bypass Prevention:** Agents cannot add bypass keywords (e.g., `qa`, `audit`, `report-only`, `finding`, `evidence`) to the issue `title` or `description` to prevent bypassing Done gates. Attempting to do so returns `403 Forbidden`.
+
+### Guarded Done Transitions
+For projects subject to the Done Transition Guard (configured via `PAPERCLIP_DONE_GUARD_PROJECT_ID` or any project containing "dark factory" in its name), code-changing or remediation issues cannot transition to `done` unless they satisfy the verification contract:
+1. **Linked PR:** The issue must have a linked implementation PR (either created as a `pull_request` work product or referenced in the description/comments).
+2. **PR Merged:** The PR must be merged (verified by the server using `gh pr view`).
+3. **No Mistakes Gate Proof:** A valid No Mistakes runs directory check must confirm a `PASS` verdict for the exact PR head commit SHA (either via the `run-manifest.json` in the latest run directory or a user comment matching the head commit SHA indicating `no mistakes pass`).
+
+**Exceptions & Bypasses:**
+* **Human Waiver:** A board/user comment under 100 characters containing `"approved waiver"` or `"waiver approved"` bypasses the gate.
+* **QA/Report-Only Containers:** Tasks marked with QA/audit/report labels/titles/descriptions (without remediation intent), or explicitly commented/labeled as an `"evidence record"` or `"finding record"` by a board user, are exempt and can be marked Done directly.
+* **Review/Recovery Tasks:** Review, escalation, or recovery tasks can close to Done without a PR if a board user leaves a disposition comment (e.g., matching `disposition`, `approved closure`, `verdict`).
+
+Failure to meet these guard conditions returns `422 Unprocessable Entity` with details about the missing verification proof.
+
 ## Checkout (Claim Task)
 
 ```
