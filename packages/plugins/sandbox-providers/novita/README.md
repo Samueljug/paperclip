@@ -29,6 +29,7 @@ When defining a Novita sandbox environment, the following configuration fields a
 | Field | Type | Description |
 |-------|------|-------------|
 | `domain` | string | Optional Novita domain URL. |
+| `apiKey` | secret-ref | Optional Novita API key secret reference. If omitted, falls back to `NOVITA_API_KEY` from the environment. |
 | `template` | string | Optional sandbox template identifier to run. |
 | `requestedCwd` | string | Optional custom working directory inside the sandbox. |
 | `timeoutMs` | number | Optional maximum sandbox lifetime in milliseconds. |

@@ -68,5 +68,5 @@ The environment test checks:
 
 - Codex CLI is installed and accessible
 - Working directory is absolute and available (auto-created if missing and permitted)
-- Authentication signal (`OPENAI_API_KEY` presence)
+- Authentication signal (adapter-env `OPENAI_API_KEY`, or native auth in the seeded managed `CODEX_HOME` or `auth.json` file; host-level key inheritance is blocked for saved agents)
 - A live hello probe (`codex exec --json -` with prompt `Respond with hello.`) to verify the CLI can actually run
