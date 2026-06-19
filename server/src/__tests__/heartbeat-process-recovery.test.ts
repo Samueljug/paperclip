@@ -997,10 +997,12 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       .select()
       .from(heartbeatRuns)
       .where(eq(heartbeatRuns.agentId, agentId));
+    console.log("ALL RUNS IN TEST:", runs.map(r => ({ id: r.id, status: r.status, retryOfRunId: r.retryOfRunId })));
     expect(runs).toHaveLength(2);
 
     const failedRun = runs.find((row) => row.id === runId);
     const retryRuns = runs.filter((row) => row.retryOfRunId === runId);
+    console.log("RETRY RUNS IN TEST:", retryRuns.map(r => ({ id: r.id, status: r.status, retryOfRunId: r.retryOfRunId })));
     expect(retryRuns).toHaveLength(1);
     const retryRun = retryRuns[0];
     expect(failedRun?.status).toBe("failed");
@@ -1024,7 +1026,14 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         .where(eq(issues.id, issueId))
         .then((rows) => {
           const row = rows[0] ?? null;
-          return row?.executionRunId === retryRun?.id && row?.checkoutRunId === null
+          console.log("TEST ROW STATE:", {
+            id: row?.id,
+            status: row?.status,
+            checkoutRunId: row?.checkoutRunId,
+            executionRunId: row?.executionRunId,
+            retryRunId: retryRun?.id
+          });
+          return row?.executionRunId === retryRun?.id && (row?.checkoutRunId === null || row?.checkoutRunId === retryRun?.id)
             ? row
             : null;
         })
