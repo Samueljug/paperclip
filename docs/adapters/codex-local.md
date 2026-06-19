@@ -5,10 +5,11 @@ summary: OpenAI Codex local adapter setup and configuration
 
 The `codex_local` adapter runs OpenAI's Codex CLI locally. It supports session persistence via `previous_response_id` chaining and skills injection through the global Codex skills directory.
 
-## Prerequisites
+## Prerequisites and Isolation Guard
 
 - Codex CLI installed (`codex` command available)
-- `OPENAI_API_KEY` set in the environment or agent config
+- `OPENAI_API_KEY` configured on the agent (note: host-level `OPENAI_API_KEY` inheritance is blocked for `codex_local` agents to ensure company isolation).
+- **Per-agent managed homes**: new/updated `codex_local` agents are allocated isolated, per-agent managed homes. Shared host or company homes are rejected.
 
 ## Configuration Fields
 
@@ -29,7 +30,7 @@ Codex uses `previous_response_id` for session continuity. The adapter serializes
 
 ## Skills Injection
 
-The adapter symlinks Paperclip skills into the global Codex skills directory (`~/.codex/skills`). Existing user skills are not overwritten.
+The adapter symlinks Paperclip skills into the isolated agent-specific Codex skills directory. Existing user skills are not overwritten.
 
 ## Fast Mode
 
@@ -43,7 +44,7 @@ Paperclip currently applies that only when the selected model is `gpt-5.4`. On o
 
 ## Managed `CODEX_HOME`
 
-When Paperclip is running inside a managed worktree instance (`PAPERCLIP_IN_WORKTREE=true`), the adapter instead uses a worktree-isolated `CODEX_HOME` under the Paperclip instance so Codex skills, sessions, logs, and other runtime state do not leak across checkouts. It seeds that isolated home from the user's main Codex home for shared auth/config continuity.
+The adapter allocates a dedicated `CODEX_HOME` under the agent's runtime directory so Codex skills, sessions, logs, and other runtime state do not leak. It seeds that isolated home from the user's main Codex home for shared auth/config continuity, while blocking host-level `OPENAI_API_KEY` inheritance to preserve company/agent boundaries.
 
 ## Manual Local CLI
 

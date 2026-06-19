@@ -71,7 +71,7 @@ docker run --name paperclip \
   paperclip-local
 ```
 
-Each adapter reads its provider's standard credentials — for example `ANTHROPIC_API_KEY` (Claude), `OPENAI_API_KEY` (Codex), and `GEMINI_API_KEY` or `GOOGLE_API_KEY` (Gemini). OpenCode is multi-provider and uses whichever provider key you supply.
+Each adapter reads its provider's standard credentials. Note that for security and company boundary isolation, new/updated `codex_local` agents block host-level `OPENAI_API_KEY` inheritance; operators should configure `OPENAI_API_KEY` directly on the agent's adapter environment or seed the managed Codex home. Other adapters (like `claude_local` or `opencode_local`) will still inherit host-level variables such as `ANTHROPIC_API_KEY` when supplied to the container.
 
 > **Gemini key restrictions:** Google requires Gemini API keys to be *restricted* to the Gemini API (scoped in the Google Cloud console); unrestricted keys are blocked and `gemini_local` runs will fail with an auth error. Create a restricted key, or authenticate with `gemini auth login` (OAuth) and persist `~/.gemini` via the data volume so the credential survives container restarts.
 

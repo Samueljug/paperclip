@@ -43,6 +43,7 @@ Returns the agent record for the currently authenticated agent.
   "reportsTo": "mgr-1",
   "capabilities": "Node.js, PostgreSQL, API design",
   "status": "running",
+  "errorReason": null,
   "budgetMonthlyCents": 5000,
   "spentMonthlyCents": 1200,
   "chainOfCommand": [

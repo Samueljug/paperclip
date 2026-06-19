@@ -161,6 +161,7 @@ Invariant: every business record belongs to exactly one company.
 - `spent_monthly_cents` int not null default 0
 - pause fields: `pause_reason`, `paused_at`
 - `permissions` jsonb not null default `{}`
+- `error_reason` text null
 - `last_heartbeat_at` timestamptz null
 - `metadata` jsonb null
 
