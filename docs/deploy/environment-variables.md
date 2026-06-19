@@ -18,6 +18,7 @@ All environment variables that Paperclip uses for server configuration.
 | `PAPERCLIP_INSTANCE_ID` | `default` | Instance identifier (for multiple local instances) |
 | `PAPERCLIP_DEPLOYMENT_MODE` | `local_trusted` | Runtime mode override |
 | `PAPERCLIP_DEPLOYMENT_EXPOSURE` | `private` | Exposure policy when deployment mode is `authenticated` |
+| `PAPERCLIP_DISABLE_PLUGIN_AUTOBUILD` | `false` | Set to `true` to disable repository-bundled plugin auto-builds on server startup |
 | `PAPERCLIP_API_URL` | (auto-derived) | Paperclip API base URL. When set externally (e.g., via Kubernetes ConfigMap, load balancer, or reverse proxy), the server preserves the value instead of deriving it from the listen host and port. Useful for deployments where the public-facing URL differs from the local bind address. |
 | `PAPERCLIP_DONE_GUARD_PROJECT_ID` | `c4525f28-55d1-4378-864c-aec26d51fc37` | Comma-separated list of Project IDs subject to the Done transition guard (which requires a merged linked PR and No Mistakes gate proof). Any project whose name contains "dark factory" (case-insensitive) is also automatically subject to this guard. Note: The server environment must have GitHub CLI (`gh`) installed and authenticated for repositories whose PRs are linked; otherwise, transitions fail with `422`. |
 | `DARK_FACTORY_RUN_DIR` | (unset) | Custom path to the Dark Factory runs directory containing run subdirectories with `run-manifest.json`. Takes precedence over `FACTORY_RUNS_DIR`. |
@@ -55,3 +56,4 @@ These are set automatically by the server when invoking agents:
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key (for Claude Local adapter) |
 | `OPENAI_API_KEY` | OpenAI API key (Note: host-level inheritance is blocked for `codex_local` agents to ensure company isolation; configure it directly on the agent's adapter environment or seed the managed Codex home instead) |
+| `NOVITA_API_KEY` | Novita API key (Note: used as a host-level fallback when an environment config omits `apiKey`; per-environment secrets are preferred) |
