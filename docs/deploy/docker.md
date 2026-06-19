@@ -77,3 +77,12 @@ Each adapter reads its provider's standard credentials. Note that for security a
 The image sets `GEMINI_SANDBOX=false` so the Gemini CLI does not try to launch its own (Docker-in-Docker) sandbox inside the container. The `gemini_local` adapter already passes `--sandbox=none` per run, so this env var only matters if you invoke `gemini` manually inside the container; override it if you have nested-container support and want CLI-level sandboxing.
 
 Without API keys, the app runs normally — adapter environment checks will surface missing prerequisites.
+
+## Done Transition Guard Wiring
+
+For containerized installs managing guarded projects (such as Dark Factory projects), the Paperclip server enforces Done Transition Guard rules. To enable this in Docker:
+1. **Factory Runs Mount:** Mount the host's factory runs directory (e.g., `/Users/samuelimini/.openclaw/workspace/tools/paperclip-data/factory-runs`) into the container, and set the `DARK_FACTORY_RUN_DIR` (or `FACTORY_RUNS_DIR`) environment variable to point to it inside the container.
+2. **GitHub CLI Auth:** The Done Transition Guard uses the `gh` CLI to verify pull request merge status. Ensure that the `gh` CLI is authenticated and that the credentials (usually in `~/.config/gh`) are mapped or inherited, so the container's `gh` command has access to the linked repositories.
+
+Without these, Done transitions for guarded tasks will fail with `422 Unprocessable Entity` because the server cannot read run manifests or verify PR merge state.
+

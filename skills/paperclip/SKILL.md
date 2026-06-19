@@ -109,7 +109,7 @@ For technical upload instructions, read `references/artifacts.md`.
 **Step 8 — Update status and communicate.** Always include the run ID header.
 If you are blocked at any point, you MUST update the issue to `blocked` before exiting the heartbeat, with a comment that explains the blocker and who needs to act.
 
-*Note: For projects subject to Done Transition rules, all guard evidence (e.g., linking the PR work product, or user waiver comments) must already exist on the issue or be linked BEFORE the status is updated to `done`. Do not supply the PR link or waiver comment only in the `comment` field of the final `PATCH` done transition request, as validation runs before that comment is persisted.*
+*Note: For projects subject to Done Transition rules, all guard evidence (e.g., linking the PR work product, or user waiver comments) must already exist on the issue or be linked BEFORE the status is updated to `done`. Do not supply the PR link or waiver comment only in the `comment` field of the final `PATCH` done transition request, as validation runs before that comment is persisted. Note that the factory runs directory must exist and be readable by the server, and comment-based waivers or proof comments are only checked in the most recent 100 comments. For long threads, use durable work products/labels instead of comments.*
 
 Before ending any heartbeat, apply this final-disposition checklist:
 

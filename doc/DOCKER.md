@@ -39,6 +39,8 @@ docker run --name paperclip \
 
 Open: `http://localhost:3100`
 
+*Note: If you are managing guarded projects (like Dark Factory), the Done Transition Guard requires mounting the factory runs directory and providing GitHub CLI authentication. Mount the host's factory runs directory using `-v /host/path/to/factory-runs:/runs` and set `-e DARK_FACTORY_RUN_DIR=/runs` (or `FACTORY_RUNS_DIR`), and ensure the container user has authenticated `gh` CLI credentials mapped or inherited.*
+
 Data persistence:
 
 - Embedded PostgreSQL data
