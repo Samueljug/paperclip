@@ -77,7 +77,9 @@ PUT    /api/issues/:issueId/watchdog   { "agentId": "...", "instructions": "..."
 DELETE /api/issues/:issueId/watchdog
 ```
 
-`PUT` is upsert. `DELETE` disables the row (it is not hard-deleted; the table keeps the history for audit). All three routes require write access to the watched issue and produce activity records (`issue.watchdog_created`, `issue.watchdog_updated`, `issue.watchdog_removed`) with the run id and actor.
+`PUT` is upsert. `DELETE` disables the row (it is not hard-deleted; the table keeps the history for audit).
+- **GET**: Requires read access to the watched issue; does not log activity.
+- **PUT / DELETE**: Require write access to the watched issue and produce activity records (`issue.watchdog_created`, `issue.watchdog_updated`, `issue.watchdog_removed`) with the run id and actor.
 
 ---
 

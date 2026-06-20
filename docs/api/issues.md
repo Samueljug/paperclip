@@ -281,7 +281,7 @@ Delete is board-only in the current implementation.
 GET /api/issues/{issueId}/watchdog
 ```
 
-Returns the active `IssueWatchdog` summary schema for the issue, or `null`.
+Returns the full `IssueWatchdog` object containing configuration and operational metadata (such as created/updated actor, run, and timestamp fields), or `null`. (Note that the embedded `watchdog` field returned in issue objects is a simplified summary).
 
 ### Create or Update Watchdog
 
