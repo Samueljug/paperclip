@@ -680,9 +680,13 @@ Releases an environment lease after a run finishes successfully or fails.
 
 Force-destroys environment lease state and associated provider resources.
 
-### 13.17 `environmentMaterializeWorkspace`
+### 13.17 `environmentRealizeWorkspace`
 
-Materializes the run workspace directory inside the sandbox environment.
+Materializes/realizes the run workspace directory inside the sandbox environment.
+
+### 13.18 `environmentExecute`
+
+Executes a command inside the sandbox environment.
 
 ## 14. SDK Surface
 

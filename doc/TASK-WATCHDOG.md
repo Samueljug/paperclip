@@ -106,7 +106,7 @@ On wake, the watchdog agent reads a fixed default mandate plus your custom instr
 
 - Treat every stopped leaf as a **claim** that must be verified against comments, documents, work products, screenshots, tests, blockers, and review state. Do not accept "I could not" or "waiting for approval" as automatically valid.
 - Leave genuinely-complete leaves alone, with a short note on what was checked.
-- If a leaf is not genuinely complete, restore a live path: reopen the issue, reassign, comment actionable instructions, create a follow-up child issue inside the watched subtree, or accept an eligible task-level plan confirmation.
+- If a leaf is not genuinely complete, restore a live path: reopen the issue, reassign, comment actionable instructions, create a follow-up child issue inside the watched subtree, or accept an eligible task-level plan confirmation (Note: resolving plan confirmations is currently a planned feature and not supported for agent-driven watchdogs in this release due to security constraints; the agent will receive a 403 Forbidden).
 - If the blocker is real, leave a valid waiting disposition that names the unblock owner and the next action.
 
 The mandate also enforces safety constraints that custom instructions **cannot override**:

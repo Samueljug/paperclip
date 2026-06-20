@@ -212,8 +212,9 @@ Supported `kind` values:
 - `suggest_tasks`: propose child issues for the board/user to accept or reject
 - `ask_user_questions`: ask structured questions and store selected answers
 - `request_confirmation`: ask the board/user to accept or reject a proposal
+- `request_checkbox_confirmation`: ask the board/user to select any subset of options and accept/reject
 
-For `request_confirmation`, `continuationPolicy: "wake_assignee"` wakes the assignee only after acceptance. Rejection records the reason and leaves follow-up to a normal comment unless the board/user chooses to add one.
+For confirmations, `continuationPolicy: "wake_assignee"` wakes the assignee on both acceptance and rejection. To wake the assignee on acceptance only, use `continuationPolicy: "wake_assignee_on_accept"`. Rejection records the reason and leaves follow-up.
 
 ### Resolve Interaction
 

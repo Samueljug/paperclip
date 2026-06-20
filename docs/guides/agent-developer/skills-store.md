@@ -228,6 +228,7 @@ All endpoints are under the company-skills router.
 - `GET /api/companies/:companyId/skills/categories` — category counts
 - `GET /api/companies/:companyId/skills/:skillId` — detail
 - `GET /api/companies/:companyId/skills/:skillId/files` — file inventory + content
+- `PATCH /api/companies/:companyId/skills/:skillId/files` — update a skill file's content
 - `POST /api/companies/:companyId/skills` — create a local skill
 - `PATCH /api/companies/:companyId/skills/:skillId` — edit metadata / sharing scope
 - `DELETE /api/companies/:companyId/skills/:skillId` — remove from the library

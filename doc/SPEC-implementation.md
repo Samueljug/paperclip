@@ -657,7 +657,7 @@ Within the watched subtree, a watchdog run may perform only mutations that resto
 - reopen `done` or `cancelled` included issues only with explicit resume metadata and an audit comment when evidence shows the stopped disposition is wrong or incomplete
 - add, replace, or clear blockers on included issues when the blocker target is in the same company and the change makes the waiting path more accurate
 - set or refresh a one-shot monitor on an included issue when the current assignee owns the future check
-- accept or reject eligible task-level plan confirmations as defined below
+- accept or reject eligible task-level plan confirmations as defined below (Note: Interaction resolution is currently restricted to human users; agent-driven watchdog runs attempting to resolve interactions will receive a `403 Forbidden` response in this release).
 - update the reusable watchdog issue itself to `done`, `in_review`, or `blocked` with the evidence for the watchdog decision
 
 Every watchdog-triggered mutation must write activity with the watchdog id, source issue id, watchdog issue id when present, run id, and stop fingerprint. Mutations still use the normal status-transition, blocker, assignment, budget, and company-boundary guards.
@@ -666,7 +666,7 @@ Every watchdog-triggered mutation must write activity with the watchdog id, sour
 
 A task watchdog must not:
 
-- mutate issues outside the watched subtree, except for comments, newly created follow-up issues that are children of included subtree issues, or creating watchdog-discovered product/platform bug follow-up issues outside the watched subtree via the `watchdogDiscovery` field (using origin kind `task_watchdog_product_bug` or `task_watchdog_platform_bug` respectively)
+- mutate issues outside the watched subtree, except for comments, newly created follow-up issues that are children of included subtree issues, or creating watchdog-discovered product/platform bug follow-up issues outside the watched subtree via the `watchdogDiscovery` field (using origin kind `task_watchdog_product_bug`)
 - mutate company, project, goal, agent, auth, API key, budget, secret, environment, plugin, or deployment settings
 - approve or reject rows in the `approvals` table, including hiring, CEO strategy, spend, budget override, or `request_board_approval` decisions
 - resolve execution-policy decisions unless the watchdog agent is the typed participant under that policy outside of its watchdog capacity

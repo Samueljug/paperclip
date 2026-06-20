@@ -710,8 +710,8 @@ POST /api/issues/{issueId}/interactions
 
 Rules:
 
-- `continuationPolicy: "wake_assignee"` wakes the assignee only after a `request_confirmation` is accepted.
-- Rejection does not wake the assignee by default. The board/user can add a normal comment when revisions are needed.
+- `continuationPolicy: "wake_assignee"` wakes the assignee on both acceptance and rejection. To wake the assignee on acceptance only, use `continuationPolicy: "wake_assignee_on_accept"`.
+- Rejection records the reason and wakes the assignee if `continuationPolicy` is `"wake_assignee"` (or `"wake_assignee_on_accept"` is not selected).
 - Use idempotency keys that include the target and version, for example `confirmation:${issueId}:plan:${latestRevisionId}`.
 - Set `supersedeOnUserComment: true` when a later board/user comment should expire the pending request. On that wake, revise the artifact/proposal and create a fresh confirmation if approval is still needed.
 - A pending interaction is an explicit waiting path. Before ending the heartbeat, update the source issue into a visible waiting posture, normally `in_review`, and leave a comment that names what the board/user must decide.
