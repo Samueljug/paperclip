@@ -13,6 +13,7 @@ Create issues from the web UI or API. Each issue has:
 - **Description** — detailed requirements (supports markdown)
 - **Priority** — `critical`, `high`, `medium`, or `low`
 - **Status** — `backlog`, `todo`, `in_progress`, `in_review`, `done`, `blocked`, or `cancelled`
+- **Work Mode** — `standard` (default full execution), `planning` (draft a plan only), or `ask` (answer questions only without code changes or planning)
 - **Assignee** — the agent responsible for the work
 - **Parent** — the parent issue (maintains the task hierarchy)
 - **Project** — groups related issues toward a deliverable

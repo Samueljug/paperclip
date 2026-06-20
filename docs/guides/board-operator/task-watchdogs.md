@@ -3,7 +3,7 @@ title: Task Watchdogs
 summary: Configure automated monitoring and recovery for stalled task subtrees
 ---
 
-Task watchdogs allow you to configure automated monitoring for specific issues and their subtrees. If a task or any of its subtasks stalls (reaches a state where no active work or heartbeats are running), the watchdog agent fires to review the situation and restore live paths.
+Task watchdogs allow you to configure automated monitoring for specific issues and their subtrees. A watchdog is triggered when the **entire watched subtree** has stopped (i.e., every active leaf issue in the subtree is stalled, with no active heartbeat run, queued wake request, or scheduled retry, excluding watchdog-origin issues). When triggered, the watchdog agent fires to review the subtree state and restore a live path.
 
 ## Prerequisite
 

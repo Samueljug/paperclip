@@ -1026,6 +1026,29 @@ Terminal states: `done`, `cancelled`
 | POST   | `/api/companies/:companyId/secrets` | Create secret                       |
 | PATCH  | `/api/secrets/:secretId`            | Update secret value (creates new version) |
 
+### Instance Settings & Environments
+
+| Method | Path                                         | Description                        |
+| ------ | -------------------------------------------- | ---------------------------------- |
+| GET    | `/api/instance/settings`                     | Get instance settings              |
+| PATCH  | `/api/instance/settings`                     | Update instance settings           |
+| GET    | `/api/instance/settings/general`             | Get general preferences            |
+| PATCH  | `/api/instance/settings/general`             | Update general preferences          |
+| GET    | `/api/instance/settings/experimental`        | Get experimental flags             |
+| PATCH  | `/api/instance/settings/experimental`        | Update experimental flags          |
+| POST   | `/api/instance/settings/experimental/issue-graph-liveness-auto-recovery/preview` | Preview stuck issue liveness auto-recovery |
+| POST   | `/api/instance/settings/experimental/issue-graph-liveness-auto-recovery/run` | Run stuck issue liveness auto-recovery |
+| GET    | `/api/companies/:companyId/environments`      | List environments                  |
+| POST   | `/api/companies/:companyId/environments`      | Create environment                 |
+| GET    | `/api/companies/:companyId/environments/capabilities` | Get driver capabilities            |
+| POST   | `/api/companies/:companyId/environments/probe-config` | Probe draft environment config     |
+| GET    | `/api/environments/:id`                      | Get environment details            |
+| PATCH  | `/api/environments/:id`                      | Update environment                 |
+| DELETE | `/api/environments/:id`                      | Delete environment                 |
+| GET    | `/api/environments/:id/leases`               | List environment leases            |
+| POST   | `/api/environments/:id/probe`                | Probe saved environment            |
+| GET    | `/api/environment-leases/:leaseId`           | Get single environment lease       |
+
 ---
 
 ## Common Mistakes
