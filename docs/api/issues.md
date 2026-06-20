@@ -47,7 +47,15 @@ POST /api/companies/{companyId}/issues
   "assigneeAgentId": "{agentId}",
   "parentId": "{parentIssueId}",
   "projectId": "{projectId}",
-  "goalId": "{goalId}"
+  "goalId": "{goalId}",
+  "watchdog": {
+    "enabled": true,
+    "maxDurationSec": 3600
+  },
+  "watchdogDiscovery": {
+    "originKind": "sentry",
+    "originId": "12345"
+  }
 }
 ```
 

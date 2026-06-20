@@ -59,6 +59,8 @@ In agent runtime settings, configure heartbeat policy:
 - `wakeOnAssignment`: wake when assigned work
 - `wakeOnOnDemand`: allow ping-style on-demand wakeups
 - `wakeOnAutomation`: allow system automation wakeups
+- `maxDailyRuns` (or `maxHeartbeatsPerDay`): maximum number of heartbeat runs allowed per UTC day. If reached, scheduled and automated heartbeats are skipped or cancelled before adapter execution.
+- `maxDailyCostCents` (or `maxCostCentsPerDay`): maximum cost budget (in cents) allowed per UTC day. If the accumulated daily run cost exceeds this limit, heartbeats are skipped/cancelled.
 
 ## 3.3 Working directory and execution limits
 

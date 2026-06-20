@@ -3338,7 +3338,8 @@ registry.registerPath({
   method: "get",
   path: "/api/companies/{companyId}/environments",
   tags: ["environments"],
-  summary: "List environments for a company",
+  summary: "List instance environments (company scope alias)",
+  description: "Retrieve environments available on this instance using the company scope route alias.",
   request: { params: z.object({ companyId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });

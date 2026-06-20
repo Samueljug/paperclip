@@ -33,11 +33,11 @@ Creating a company secret does not automatically create an environment variable.
 You use a secret by binding it into an agent, project, environment, or plugin
 configuration field that supports secret references.
 
-For agent and project environment variables:
+For agent, project, and environment variables:
 
 1. Create or link the secret in `Company Settings > Secrets`.
-2. Open the agent's `Environment variables` field, or the project's `Env`
-   field.
+2. Open the agent's `Environment variables` field, the project's `Env`
+   field, or the environment's `Env vars` field (under `Instance Settings > Environments`).
 3. Add the environment variable key the process expects, such as `GH_TOKEN` or
    `OPENAI_API_KEY`.
 4. Set the row source to `Secret`, select the stored secret, and choose either
@@ -47,8 +47,8 @@ At runtime, Paperclip resolves the selected secret server-side and injects the
 resolved value under the env key from the binding row. The stored secret name
 can be human-readable; the binding key is what the agent process receives.
 
-Project env applies to every issue run in that project. When a project env key
-matches an agent env key, the project value wins before Paperclip injects its
+Project env applies to every issue run in that project. Environment env applies to every run that selects that environment. When a project/environment env key
+matches an agent env key, the project/environment value wins before Paperclip injects its
 own `PAPERCLIP_*` runtime variables.
 
 ## Default Provider: `local_encrypted`
