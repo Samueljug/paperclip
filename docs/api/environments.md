@@ -16,6 +16,10 @@ List and get environment endpoints are readable by any board organization member
 GET /api/companies/{companyId}/environments
 ```
 
+Query parameters (optional):
+- `status`: filter environments by status (e.g. `active`).
+- `driver`: filter environments by driver type (e.g. `local`).
+
 Returns the list of configured runtime environments. Note that environments are instance-wide, so this list returns all environments configured on the instance and does not filter by `{companyId}`.
 
 ## Create Environment
@@ -28,8 +32,8 @@ POST /api/companies/{companyId}/environments
   "driver": "local",
   "config": {},
   "envVars": {
-    "NODE_ENV": { "value": "production" },
-    "GH_TOKEN": { "secretId": "secret-uuid-here" }
+    "NODE_ENV": "production",
+    "GH_TOKEN": { "type": "secret_ref", "secretId": "secret-uuid-here" }
   }
 }
 ```

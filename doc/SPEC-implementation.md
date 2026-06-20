@@ -453,12 +453,12 @@ The current implementation includes additional V1-control-plane tables beyond th
 
 ## 7.17 Instance-scoped Environments
 
-Instance-scoped environments represent the execution environments (such as Local process, Daytona, E2B, etc.) configured for the entire Paperclip instance:
+Instance-scoped environments represent the execution environments (such as Local, SSH, Sandbox, or Plugin-based runners) configured for the entire Paperclip instance:
 - `environments` table:
   - `id` uuid pk
   - `name` text not null
   - `description` text null
-  - `driver` text not null (e.g. `process`, `e2b`, `daytona`)
+  - `driver` text not null (e.g. `local`, `ssh`, `sandbox`, `plugin`)
   - `status` text not null
   - `config` jsonb not null default '{}'
   - `env_vars` jsonb not null default '{}' (stores environment-level variables)
