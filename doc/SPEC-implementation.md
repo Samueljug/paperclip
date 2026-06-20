@@ -767,6 +767,9 @@ All endpoints are under `/api` and return JSON.
 - `GET /issues/:issueId/attachments`
 - `GET /attachments/:attachmentId/content`
 - `DELETE /attachments/:attachmentId`
+- `GET /issues/:issueId/watchdog`
+- `PUT /issues/:issueId/watchdog`
+- `DELETE /issues/:issueId/watchdog`
 
 ### 10.4.1 Atomic Checkout Contract
 

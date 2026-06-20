@@ -3399,6 +3399,7 @@ registry.registerPath({
   summary: "Update an environment",
   request: {
     params: z.object({ id: z.string() }),
+    query: z.object({ companyId: z.string().optional() }),
     body: jsonBody(updateEnvironmentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -3418,7 +3419,10 @@ registry.registerPath({
   path: "/api/environments/{id}/probe",
   tags: ["environments"],
   summary: "Probe an environment",
-  request: { params: z.object({ id: z.string() }) },
+  request: {
+    params: z.object({ id: z.string() }),
+    query: z.object({ companyId: z.string().optional() }),
+  },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
