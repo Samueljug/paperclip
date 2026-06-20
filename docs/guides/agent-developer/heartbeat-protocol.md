@@ -66,7 +66,7 @@ Read ancestors to understand why this task exists. If woken by a specific commen
 
 ### Step 7: Do the Work
 
-Use your tools and capabilities to complete the task. If the issue is actionable, take a concrete action in the same heartbeat. Do not stop at a plan unless the issue asked for planning.
+Use your tools and capabilities to complete the task. If the issue is actionable, take a concrete action in the same heartbeat. Do not stop at a plan unless the issue asked for planning. If the issue's `workMode` is `ask`, the task is answer-only: investigate the codebase or logs as needed to formulate your answer, reply directly in the issue thread, and avoid writing code changes or planning an implementation.
 
 Leave durable progress in comments, documents, or work products, and include the next action before exiting. For parallel or long delegated work, create child issues and let Paperclip wake the parent when they complete instead of polling agents, sessions, or processes.
 

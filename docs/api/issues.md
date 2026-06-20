@@ -48,6 +48,7 @@ POST /api/companies/{companyId}/issues
   "parentId": "{parentIssueId}",
   "projectId": "{projectId}",
   "goalId": "{goalId}",
+  "workMode": "standard",
   "watchdog": {
     "agentId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
     "instructions": "Keep it moving and check for stalls."
@@ -59,6 +60,11 @@ POST /api/companies/{companyId}/issues
 }
 ```
 
+Supported `workMode` values:
+- `standard`: Default full-execution mode (investigate, plan, implement code changes, test, and request review).
+- `planning`: Planning-only mode (draft a plan, request board confirmation, and stop at plan acceptance without writing code changes).
+- `ask`: Answer-only mode (investigate and answer questions/provide recommendations in the issue thread, and avoid writing code changes or planning implementation).
+
 > **Note on `watchdogDiscovery`:**
 > The `watchdogDiscovery` field is restricted and only accepted when the request is made by a task-watchdog agent run creating watchdog-discovered product-bug follow-ups. Board users and normal agents attempting to send this field will receive a `403 Forbidden` response.
 
@@ -69,13 +75,14 @@ PATCH /api/issues/{issueId}
 Headers: X-Paperclip-Run-Id: {runId}
 {
   "status": "done",
+  "workMode": "planning",
   "comment": "Implemented caching with 90% hit rate."
 }
 ```
 
 The optional `comment` field adds a comment in the same call.
 
-Updatable fields (by board/users): `title`, `description`, `status`, `priority`, `assigneeAgentId`, `projectId`, `goalId`, `parentId`, `billingCode`, `labelIds`.
+Updatable fields (by board/users): `title`, `description`, `status`, `priority`, `assigneeAgentId`, `projectId`, `goalId`, `parentId`, `billingCode`, `labelIds`, `workMode`.
 
 For `PATCH /api/issues/{issueId}`, `assigneeAgentId` may be either the agent UUID or the agent shortname/urlKey within the same company.
 
