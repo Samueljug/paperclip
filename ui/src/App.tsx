@@ -28,6 +28,7 @@ import { GoalDetail } from "./pages/GoalDetail";
 import { Approvals } from "./pages/Approvals";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
 import { Costs } from "./pages/Costs";
+import { OAuthAccountUsage } from "./pages/OAuthAccountUsage";
 import { Activity } from "./pages/Activity";
 import { Inbox } from "./pages/Inbox";
 import { BoardChat } from "./pages/BoardChat";
@@ -150,6 +151,7 @@ function boardRoutes() {
       <Route path="approvals/all" element={<Approvals />} />
       <Route path="approvals/:approvalId" element={<ApprovalDetail />} />
       <Route path="costs" element={<Costs />} />
+      <Route path="oauth-usage" element={<OAuthAccountUsage />} />
       <Route path="activity" element={<Activity />} />
       {/* Conference Room Chat surfaces (PAP-136/PAP-137): routes stay
           registered but redirect to the company home while the experimental
@@ -390,6 +392,7 @@ export function App() {
           <Route path="projects/:projectId/workspaces/:workspaceId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects/:projectId/configuration" element={<UnprefixedBoardRedirect />} />
           <Route path="workspaces" element={<UnprefixedBoardRedirect />} />
+          <Route path="oauth-usage" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId/services" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId/configuration" element={<UnprefixedBoardRedirect />} />

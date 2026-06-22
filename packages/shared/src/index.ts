@@ -792,6 +792,10 @@ export type {
   PluginJobRecord,
   PluginJobRunRecord,
   PluginWebhookDeliveryRecord,
+  OAuthAccountUsageReport,
+  OAuthAccountUsageResponse,
+  OAuthAccountUsabilityStatus,
+  OAuthLocalUsageSummary,
   QuotaWindow,
   ProviderQuotaResult,
 } from "./types/index.js";
