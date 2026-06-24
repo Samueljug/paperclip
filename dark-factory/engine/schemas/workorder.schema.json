@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.local/dark-factory/workorder.schema.json",
+  "title": "Dark Factory WorkOrder",
+  "type": "object",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": ["changeType"],
+        "properties": {
+          "changeType": {
+            "enum": ["code", "api", "ui", "fullstack", "test", "docs", "config"]
+          }
+        }
+      },
+      "then": {
+        "required": ["loops"],
+        "properties": {
+          "loops": {
+            "contains": {
+              "type": "object",
+              "required": [
+                "kind",
+                "trigger",
+                "maxIterations",
+                "judge",
+                "memory",
+                "exitCondition",
+                "escalation",
+                "escalateOnExhaustion"
+              ],
+              "properties": {
+                "kind": { "const": "plan_adversarial_review" },
+                "maxIterations": { "const": 1 },
+                "escalateOnExhaustion": { "const": true }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          }
+        }
+      }
+    }
+  ],
+  "required": [
+    "schemaVersion",
+    "workOrderId",
+    "title",
+    "brief",
+    "repo",
+    "taskRoute",
+    "changeType",
+    "allowedWriteScope",
+    "acceptanceContract",
+    "coordination",
+    "gates",
+    "loop"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "workOrderId": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "issue": { "type": "string" },
+    "issueId": { "type": "string" },
+    "paperclipEvidence": { "type": "boolean" },
+    "paperclipApiBase": { "type": "string" },
+    "paperclipOrigin": { "type": "string" },
+    "paperclipCompanyId": { "type": "string" },
+    "paperclipIssueId": { "type": "string" },
+    "paperclipIssueUrl": { "type": "string" },
+    "paperclipTimeoutMs": { "type": "number" },
+    "paperclip": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiBase": { "type": "string" },
+        "origin": { "type": "string" },
+        "companyId": { "type": "string" },
+        "issueId": { "type": "string" },
+        "issueIdentifier": { "type": "string" },
+        "issueUrl": { "type": "string" },
+        "timeoutMs": { "type": "number" }
+      }
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "brief": { "type": "string", "minLength": 1 },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "url", "baseBranch"],
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "baseBranch": { "type": "string" },
+        "workingDir": { "type": "string" },
+        "branch": { "type": "string" }
+      }
+    },
+    "taskRoute": {
+      "$ref": "task-route-contract.schema.json"
+    },
+    "changeType": {
+      "type": "string",
+      "enum": ["code", "api", "ui", "fullstack", "test", "docs", "config", "process"]
+    },
+    "allowedWriteScope": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "protectedPaths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "acceptanceContract": {
+      "$ref": "acceptance-contract.schema.json"
+    },
+    "testExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "baselineMustFail": { "type": "boolean" },
+        "authorBeforeImplementation": { "type": "boolean" },
+        "isolatedFromBuilder": { "type": "boolean" },
+        "notes": { "type": "string" }
+      }
+    },
+    "testContract": {
+      "$ref": "test-contract.schema.json"
+    },
+    "coordination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentEndpoints",
+        "messageTopology",
+        "authorityDistribution",
+        "syncMode",
+        "aggregation",
+        "termination",
+        "failureHandling",
+        "informationPolicy",
+        "computeAccounting"
+      ],
+      "properties": {
+        "agentEndpoints": { "type": "array", "items": { "type": "string" } },
+        "messageTopology": { "type": "string" },
+        "authorityDistribution": { "type": "string" },
+        "syncMode": { "type": "string" },
+        "aggregation": { "type": "string" },
+        "termination": { "type": "string" },
+        "failureHandling": { "type": "string" },
+        "informationPolicy": { "type": "string" },
+        "computeAccounting": { "type": "string" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tests": { "type": "boolean" },
+        "securityReview": { "type": "boolean" },
+        "browserQa": { "type": "boolean" },
+        "noMistakes": { "type": "boolean" },
+        "evidence": { "type": "boolean" },
+        "pr": { "type": "boolean" },
+        "paperclipEvidence": { "type": "boolean" }
+      }
+    },
+    "loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxIterations", "judge", "escalateOnExhaustion"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "intake_clarification",
+            "plan_adversarial_review",
+            "implementation_fix_test",
+            "browser_webwright_user_flow",
+            "review_security_no_mistakes_repair",
+            "pr_review_watcher",
+            "post_merge_telemetry",
+            "regression_scenario_memory",
+            "factory_meta_improvement",
+            "loop_health_economics",
+            "maintenance",
+            "custom"
+          ]
+        },
+        "owner": { "type": "string" },
+        "trigger": { "type": "string" },
+        "maxIterations": { "type": "integer", "minimum": 1 },
+        "timeBudgetMinutes": { "type": "integer", "minimum": 1 },
+        "judge": { "type": "string" },
+        "memory": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "exitCondition": { "type": "string" },
+        "escalation": { "type": "string" },
+        "escalateOnExhaustion": { "type": "boolean" }
+      }
+    },
+    "loops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "maxIterations", "judge", "escalateOnExhaustion"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "intake_clarification",
+              "plan_adversarial_review",
+              "implementation_fix_test",
+              "browser_webwright_user_flow",
+              "review_security_no_mistakes_repair",
+              "pr_review_watcher",
+              "post_merge_telemetry",
+              "regression_scenario_memory",
+              "factory_meta_improvement",
+              "loop_health_economics",
+              "maintenance",
+              "custom"
+            ]
+          },
+          "owner": { "type": "string" },
+          "trigger": { "type": "string" },
+          "maxIterations": { "type": "integer", "minimum": 1 },
+          "timeBudgetMinutes": { "type": "integer", "minimum": 1 },
+          "judge": { "type": "string" },
+          "memory": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "exitCondition": { "type": "string" },
+          "escalation": { "type": "string" },
+          "escalateOnExhaustion": { "type": "boolean" }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "evidenceRequirements": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

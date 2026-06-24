@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "workOrderId": "DF-SMOKE-1",
+  "issue": "DF-SMOKE-1",
+  "title": "Dark Factory smoke run",
+  "brief": "Prove that Foreman can validate a WorkOrder, create a run, record evidence, and fail closed until gates pass.",
+  "repo": {
+    "name": "workspace",
+    "url": "local",
+    "baseBranch": "stage",
+    "workingDir": "/Users/samuelimini/.openclaw/workspace",
+    "branch": "dark-factory-smoke"
+  },
+  "taskRoute": {
+    "schemaVersion": 1,
+    "kind": "core_policy",
+    "source": "Dark Factory local tooling smoke run",
+    "decision": "This is local OpenClaw/Dark Factory policy tooling, not main app stage code.",
+    "repoUrl": "local",
+    "baseBranch": "stage",
+    "branch": "dark-factory-smoke",
+    "localPath": "/Users/samuelimini/.openclaw/workspace",
+    "difficulty": "D1",
+    "mode": "mode0",
+    "changeType": "process",
+    "prBacked": false,
+    "browserQa": false,
+    "userFlow": false,
+    "userVisible": false,
+    "requiredLanes": [
+      "foreman",
+      "self_improvement"
+    ],
+    "evidenceRequirements": [
+      "review"
+    ]
+  },
+  "changeType": "process",
+  "allowedWriteScope": [
+    "tools/dark-factory/**",
+    "tools/paperclip-board/**"
+  ],
+  "acceptanceContract": {
+    "frozen": true,
+    "intentConfirmation": {
+      "required": false,
+      "status": "not_required"
+    },
+    "criteria": [
+      {
+        "id": "AC1",
+        "statement": "Foreman validates this WorkOrder and starts a run.",
+        "verification": "Run `foreman validate` and `foreman start` successfully.",
+        "holdout": false
+      },
+      {
+        "id": "AC2",
+        "statement": "Foreman fails readiness until required evidence and gates pass.",
+        "verification": "Run `foreman ready` before and after gate files are present.",
+        "holdout": false
+      }
+    ]
+  },
+  "coordination": {
+    "agentEndpoints": [
+      "codex-builder",
+      "claude-judge"
+    ],
+    "messageTopology": "Foreman-mediated handoff; no free-form consensus loop controls shipping.",
+    "authorityDistribution": "Foreman owns stage advancement, gate validation, push, and PR commands.",
+    "syncMode": "bounded async review with typed verdict files",
+    "aggregation": "typed PASS/FAIL/PARTIAL/BLOCKED verdicts with evidence refs",
+    "termination": "stop on PASS, budget exhaustion, or BLOCKED escalation",
+    "failureHandling": "retry inside loop budget, then escalate without pretending success",
+    "informationPolicy": "builders see the frozen contract; hidden holdouts stay with the judge",
+    "computeAccounting": "record model/tool usage estimates as evidence, not billing truth"
+  },
+  "gates": {
+    "tests": false,
+    "securityReview": false,
+    "browserQa": false,
+    "noMistakes": false,
+    "evidence": true,
+    "pr": false
+  },
+  "loop": {
+    "maxIterations": 2,
+    "timeBudgetMinutes": 15,
+    "judge": "independent cross-model judge",
+    "escalateOnExhaustion": true
+  },
+  "evidenceRequirements": [
+    "review"
+  ]
+}

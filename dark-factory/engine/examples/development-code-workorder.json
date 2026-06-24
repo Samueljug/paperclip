@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "workOrderId": "DEV-CODE-EXAMPLE-1",
+  "issue": "DEV-CODE-EXAMPLE-1",
+  "title": "Example Development code bugfix",
+  "brief": "Template for a small Development code bugfix run. Copy this shape for real legal/dev tickets and update the issue, repo, workingDir, branch, allowed write scope, and acceptance criteria.",
+  "repo": {
+    "name": "backend-legal",
+    "url": "https://github.com/aila-code/backend-legal",
+    "baseBranch": "stage",
+    "workingDir": "/Users/samuelimini/Development/Dev/backend-legal-ticket-001/backend-legal",
+    "branch": "dark-factory/ticket-001-small-bugfix"
+  },
+  "taskRoute": {
+    "schemaVersion": 1,
+    "kind": "legal_dev_app",
+    "source": "Example legal/dev app ticket, not main app stage.",
+    "decision": "Samuel explicitly routes aila-code repositories as legal/dev app work; main app stage uses aila-quillio repos.",
+    "repoUrl": "https://github.com/aila-code/backend-legal",
+    "baseBranch": "stage",
+    "branch": "dark-factory/ticket-001-small-bugfix",
+    "localPath": "/Users/samuelimini/Development/Dev/backend-legal-ticket-001/backend-legal",
+    "difficulty": "D2",
+    "mode": "mode2",
+    "changeType": "code",
+    "prBacked": true,
+    "browserQa": false,
+    "userFlow": false,
+    "userVisible": false,
+    "requiredLanes": [
+      "foreman",
+      "planning",
+      "implementation",
+      "verification",
+      "security",
+      "no_mistakes",
+      "pr",
+      "self_improvement"
+    ],
+    "evidenceRequirements": [
+      "test",
+      "security_review"
+    ]
+  },
+  "changeType": "code",
+  "allowedWriteScope": [
+    "src/**",
+    "tests/**"
+  ],
+  "protectedPaths": [
+    ".dark-factory/holdouts/**",
+    "test-contract.json"
+  ],
+  "acceptanceContract": {
+    "frozen": true,
+    "intentConfirmation": {
+      "required": false,
+      "status": "not_required"
+    },
+    "criteria": [
+      {
+        "id": "AC1",
+        "statement": "The selected bug is fixed without changing unrelated behavior.",
+        "verification": "Targeted regression test fails before the fix or clearly covers the bug path, then passes after the fix.",
+        "holdout": false
+      },
+      {
+        "id": "AC2",
+        "statement": "The repo's practical local quality checks pass or any local/CI parity gap is recorded.",
+        "verification": "Attach test/build/lint evidence or a documented local exception.",
+        "holdout": false
+      }
+    ]
+  },
+  "testExpectation": {
+    "required": true,
+    "baselineMustFail": true,
+    "authorBeforeImplementation": true,
+    "isolatedFromBuilder": true,
+    "notes": "Verification/test roles freeze this before implementation. Builders receive visible suites only; holdout details stay with the verifier."
+  },
+  "testContract": {
+    "schemaVersion": 1,
+    "required": true,
+    "frozen": true,
+    "authorRole": "verification-lead",
+    "createdAt": "2026-06-11T00:00:00.000Z",
+    "acceptanceCriteria": [
+      "AC1",
+      "AC2"
+    ],
+    "suites": {
+      "visible": [
+        {
+          "id": "targeted-regression-visible",
+          "level": "unit",
+          "summary": "Visible regression command the builder may run for fast feedback.",
+          "command": [
+            "npm",
+            "test"
+          ],
+          "mapsTo": [
+            "AC1",
+            "AC2"
+          ],
+          "redBeforeGreen": true
+        }
+      ],
+      "holdout": [
+        {
+          "id": "targeted-regression-holdout",
+          "level": "unit",
+          "summary": "Verifier-owned holdout command. Replace with the real sealed command for the ticket.",
+          "command": [
+            "npm",
+            "test"
+          ],
+          "mapsTo": [
+            "AC1",
+            "AC2"
+          ],
+          "sealed": true
+        }
+      ]
+    },
+    "expectedEvidence": [
+      "test",
+      "holdout_test"
+    ],
+    "protectedPaths": [
+      ".dark-factory/holdouts/**",
+      "test-contract.json"
+    ],
+    "amendments": []
+  },
+  "coordination": {
+    "agentEndpoints": [
+      "codex-builder",
+      "claude-judge"
+    ],
+    "messageTopology": "Foreman-mediated handoff; ticket comments and gate files are the source of truth.",
+    "authorityDistribution": "Foreman owns stage advancement, evidence checks, No Mistakes, push, and PR commands.",
+    "syncMode": "bounded async review with typed verdict files",
+    "aggregation": "typed PASS/FAIL/PARTIAL/BLOCKED verdicts with evidence refs",
+    "termination": "stop on PASS, budget exhaustion, or BLOCKED escalation",
+    "failureHandling": "retry inside loop budget, then escalate without pretending success",
+    "informationPolicy": "builder sees the frozen contract; hidden holdouts stay with the independent judge",
+    "computeAccounting": "record model/tool usage estimates as evidence, not billing truth"
+  },
+  "gates": {
+    "tests": true,
+    "securityReview": true,
+    "browserQa": false,
+    "noMistakes": true,
+    "evidence": true,
+    "pr": true
+  },
+  "loop": {
+    "kind": "primary",
+    "owner": "implementation-lead",
+    "trigger": "A required gate or acceptance check fails during the ticket run.",
+    "maxIterations": 3,
+    "timeBudgetMinutes": 90,
+    "judge": "Claude Opus 4.8 max independent review after Codex build",
+    "memory": "Foreman run manifest, Paperclip ledger, evidence pack, and PR comments",
+    "evidence": [
+      "test",
+      "security_review"
+    ],
+    "exitCondition": "implementation passes verification/security/evidence gates, or loop exhausts and escalates",
+    "escalation": "block the ticket with exact failing command/finding and next owner",
+    "escalateOnExhaustion": true
+  },
+  "loops": [
+    {
+      "id": "plan-adversarial-review",
+      "kind": "plan_adversarial_review",
+      "owner": "orchestra, Foreman, and Claude workers",
+      "trigger": "Immediately after the planning team returns a plan and before implementation starts, push back to the planning team exactly once and ask: Is there anything else that has been missed? Are there any errors? Are there any conflicts in the plan?",
+      "maxIterations": 1,
+      "timeBudgetMinutes": 10,
+      "judge": "Foreman verifies the one planning-team challenge was sent once and the response or lack of response was recorded before implementation proceeds.",
+      "memory": "Ticket comments, Foreman loop event, run manifest, and evidence/source of truth for the planning-team response or lack of response.",
+      "evidence": [
+        "plan_adversarial_review"
+      ],
+      "exitCondition": "The one adversarial plan challenge is recorded with the planning team response or lack of response.",
+      "escalation": "If the challenge finds missed work, errors, or conflicts, return to the planning team for correction before implementation proceeds.",
+      "escalateOnExhaustion": true
+    },
+    {
+      "id": "implementation-fix-test",
+      "kind": "implementation_fix_test",
+      "owner": "implementation-lead",
+      "trigger": "tests, lint, typecheck, build, reproduction, or acceptance criteria fail",
+      "maxIterations": 3,
+      "timeBudgetMinutes": 60,
+      "judge": "verification-lead pass on targeted and practical repo checks",
+      "memory": "Foreman loop events plus test/build evidence artifacts",
+      "evidence": [
+        "test",
+        "build"
+      ],
+      "exitCondition": "checks pass or failure is escalated as blocked",
+      "escalation": "verification-lead records blocker and asks OpenClaw/Samuel only when decision is ambiguous",
+      "escalateOnExhaustion": true
+    },
+    {
+      "id": "review-repair",
+      "kind": "review_security_no_mistakes_repair",
+      "owner": "implementation-lead",
+      "trigger": "Claude, security, CI, reviewer, or No Mistakes returns an actionable finding",
+      "maxIterations": 5,
+      "timeBudgetMinutes": 90,
+      "judge": "same reviewer/gate passes for the exact current head and routed base",
+      "memory": "review findings, gate outputs, regression checks, PR comments",
+      "evidence": [
+        "model_review",
+        "security_review",
+        "no_mistakes_output"
+      ],
+      "exitCondition": "finding resolved with evidence, or per-finding escalation after cap",
+      "escalation": "block with actionable finding list and owner/action",
+      "escalateOnExhaustion": true
+    },
+    {
+      "id": "regression-scenario-memory",
+      "kind": "regression_scenario_memory",
+      "owner": "self-improvement-lead",
+      "trigger": "a real bug, review finding, browser QA failure, or telemetry issue is fixed",
+      "maxIterations": 1,
+      "timeBudgetMinutes": 15,
+      "judge": "scenario captures the old failure path and has a verification command or Webwright flow",
+      "memory": "tools/paperclip-data/regression-scenarios/scenarios.jsonl",
+      "evidence": [
+        "regression_scenario"
+      ],
+      "exitCondition": "scenario stored or visible reason recorded",
+      "escalation": "create an Improvement Report if a reusable scenario cannot be captured",
+      "escalateOnExhaustion": true
+    }
+  ],
+  "evidenceRequirements": [
+    "test",
+    "security_review"
+  ]
+}

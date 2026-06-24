@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.local/dark-factory/plan.schema.json",
+  "title": "Dark Factory Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workOrderId", "approach", "writeScope", "verificationPlan"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "workOrderId": { "type": "string" },
+    "approach": { "type": "string" },
+    "alternativesConsidered": { "type": "array", "items": { "type": "string" } },
+    "writeScope": { "type": "array", "items": { "type": "string" } },
+    "interfaceContract": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "oraclePlan": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "verificationPlan": { "type": "array", "items": { "type": "string" } }
+  }
+}

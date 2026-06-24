@@ -1,0 +1,14 @@
+{
+  "teamId": "replace-with-clickup-workspace-id",
+  "sources": [
+    {
+      "name": "Development bugs",
+      "listId": "replace-with-clickup-list-id",
+      "importStatuses": ["to do", "open", "ready"],
+      "reviewStatus": "review"
+    }
+  ],
+  "maxPerRun": 10,
+  "paperclipReviewStatuses": ["in_review", "done"],
+  "stateDir": "<FORK>/dark-factory/intake/state"
+}

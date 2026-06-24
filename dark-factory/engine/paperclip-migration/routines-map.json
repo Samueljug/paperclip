@@ -1,0 +1,10 @@
+{
+  "createdAt": "2026-06-13T05:42:05Z",
+  "apply": "dry-run",
+  "routines": {
+    "improver-monitor":  { "routineId": "00000000-0000-0000-0000-000000000000", "triggerId": "00000000-0000-0000-0000-000000000000", "external": "crontab:dark-factory-improver-monitor" },
+    "pattern-miner":     { "routineId": "00000000-0000-0000-0000-000000000000", "triggerId": "00000000-0000-0000-0000-000000000000", "external": "crontab:improver-monitor(inner)" },
+    "backlog-sweeper":   { "routineId": "00000000-0000-0000-0000-000000000000", "triggerId": "00000000-0000-0000-0000-000000000000", "external": "crontab:improver-monitor(inner)" },
+    "foreman":           { "routineId": "00000000-0000-0000-0000-000000000000", "triggerId": "00000000-0000-0000-0000-000000000000", "external": "launchd:com.openclaw.dark-factory-foreman" }
+  }
+}

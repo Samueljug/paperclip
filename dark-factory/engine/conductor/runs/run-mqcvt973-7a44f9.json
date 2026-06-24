@@ -1,0 +1,16 @@
+{
+  "runId": "mqcvt973-7a44f9",
+  "repo": "https://github.com/Samueljug/df-conductor-sandbox.git",
+  "base": "main",
+  "task": "add and export a square(n) function in math.js that returns n * n, and add an assertion to test.js verifying square(5) === 25",
+  "branch": "factory/add-and-export-a-square-n-functi-mqcvt973-7a44f9",
+  "allowProd": false,
+  "impl": null,
+  "gate": null,
+  "review": null,
+  "pr": null,
+  "startedAt": "2026-06-13T21:42:57.999Z",
+  "status": "failed",
+  "error": "fetch failed",
+  "finishedAt": "2026-06-13T21:42:59.878Z"
+}

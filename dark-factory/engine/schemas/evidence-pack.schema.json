@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.local/dark-factory/evidence-pack.schema.json",
+  "title": "Dark Factory EvidencePack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "items"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "summary"],
+        "properties": {
+          "kind": { "type": "string" },
+          "path": { "type": "string" },
+          "url": { "type": "string" },
+          "summary": { "type": "string" },
+          "sha256": { "type": "string" },
+          "createdAt": { "type": "string" }
+        }
+      }
+    }
+  }
+}
