@@ -46,10 +46,12 @@
               "guides/board-operator/managing-agents",
               "guides/board-operator/org-structure",
               "guides/board-operator/managing-tasks",
+              "guides/board-operator/task-watchdogs",
               "guides/board-operator/execution-workspaces-and-runtime-services",
               "guides/board-operator/delegation",
               "guides/board-operator/execution-workspaces-and-runtime-services",
               "guides/board-operator/delegation",
+              "guides/board-operator/experimental-features",
               "guides/board-operator/approvals",
               "guides/board-operator/costs-and-budgets",
               "guides/board-operator/activity-log",
@@ -62,6 +64,7 @@
               "guides/agent-developer/how-agents-work",
               "guides/agent-developer/heartbeat-protocol",
               "guides/agent-developer/writing-a-skill",
+              "guides/agent-developer/skills-store",
               "guides/agent-developer/task-workflow",
               "guides/agent-developer/comments-and-communication",
               "guides/agent-developer/handling-approvals",
@@ -123,7 +126,9 @@
               "api/costs",
               "api/secrets",
               "api/activity",
-              "api/dashboard"
+              "api/dashboard",
+              "api/instance-settings",
+              "api/environments"
             ]
           }
         ]

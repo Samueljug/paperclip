@@ -20,6 +20,8 @@ pnpm paperclipai issue create --title "..." [--description "..."] [--status todo
 # Update issue
 pnpm paperclipai issue update <issue-id> [--status in_progress] [--comment "..."]
 
+*Note for `issue update`: Done transitions on guarded projects are server-gated; required PR, No Mistakes proof, or human waivers must already be posted on the issue prior to running this update.*
+
 # Add comment
 pnpm paperclipai issue comment <issue-id> --body "..." [--reopen]
 
@@ -133,6 +135,17 @@ pnpm paperclipai activity list [--agent-id <id>] [--entity-type issue] [--entity
 ```sh
 pnpm paperclipai dashboard get
 ```
+
+## Instance Settings
+
+```sh
+pnpm paperclipai instance settings:general
+pnpm paperclipai instance settings:general:update --payload-json '{...}'
+pnpm paperclipai instance settings:experimental
+pnpm paperclipai instance settings:experimental:update --payload-json '{...}'
+```
+
+Experimental features are opt-in and are provided without compatibility guarantees. They may break, change, or be removed at any time. Use them at your own risk.
 
 ## Heartbeat
 

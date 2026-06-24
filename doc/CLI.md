@@ -160,6 +160,8 @@ pnpm paperclipai issue get <issue-id-or-identifier>
 pnpm paperclipai issue create --company-id <company-id> --title "..." [--description "..."] [--status todo] [--priority high]
 pnpm paperclipai issue update <issue-id> [--status in_progress] [--comment "..."]
 pnpm paperclipai issue delete <issue-id> --yes
+
+*Note: Transitioning to status 'done' on guarded/Dark Factory projects requires a pre-existing linked merged PR and No Mistakes proof or human waiver/disposition.*
 pnpm paperclipai issue comment <issue-id> --body "..." [--reopen]
 pnpm paperclipai issue comments <issue-id> [--limit 50]
 pnpm paperclipai issue comment:get <issue-id> <comment-id>
@@ -639,6 +641,14 @@ pnpm paperclipai admin user company-access <user-id>
 pnpm paperclipai admin user company-access:update <user-id> --payload-json '{...}'
 ```
 
+CLI auth login facilitates user authentication via browser or headless/browser-suppressed mode:
+
+```sh
+pnpm paperclipai auth login [--no-browser]
+```
+
+When `--no-browser` is specified (or `PAPERCLIP_NO_BROWSER` is set in the environment), the login command suppresses opening a local browser and instead prints the authentication URL directly for manual entry. `PAPERCLIP_PUBLIC_URL` is used to formulate the callback/redirection targets.
+
 CLI auth challenge endpoints are also exposed for tooling that needs the raw challenge lifecycle:
 
 ```sh
@@ -651,6 +661,8 @@ pnpm paperclipai auth revoke-current
 
 `--token <challenge-secret>` is still supported for compatibility, but `--token-env` avoids putting challenge secrets in shell history or process arguments.
 
+## Instance Settings Commands
+
 ```sh
 pnpm paperclipai instance scheduler-heartbeats
 pnpm paperclipai instance settings:general
@@ -658,6 +670,11 @@ pnpm paperclipai instance settings:general:update --payload-json '{...}'
 pnpm paperclipai instance settings:experimental
 pnpm paperclipai instance settings:experimental:update --payload-json '{...}'
 pnpm paperclipai instance database-backup
+```
+
+Experimental features are opt-in and are provided without compatibility guarantees. They may break, change, or be removed at any time. Use them at your own risk.
+
+```sh
 pnpm paperclipai sidebar preferences
 pnpm paperclipai sidebar preferences:update --payload-json '{...}'
 pnpm paperclipai sidebar project-preferences --company-id <company-id>
@@ -840,8 +857,11 @@ Local Paperclip data lives under the selected instance root. `PAPERCLIP_HOME` ch
         │   └── master.key                        # local_encrypted master key
         ├── workspaces/                           # default agent workspaces
         ├── projects/                             # project execution workspaces
-        ├── companies/                            # per-company adapter homes (e.g. codex-home)
-        └── codex-home/                           # per-instance codex home (when not company-scoped)
+        └── companies/
+            └── <company-id>/
+                └── agents/
+                    └── <agent-id>/
+                        └── codex-home/           # isolated, per-agent codex home (shares/host inheritance blocked)
 ```
 
 Default paths for the canonical install:
